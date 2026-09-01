@@ -50,7 +50,7 @@ public final class ClasspathResolver {
         if (entry instanceof LibraryOrderEntry libraryEntry) {
           DependencyScope scope = libraryEntry.getScope();
           if (scope == DependencyScope.COMPILE) {
-            for (VirtualFile root : libraryEntry.getFiles(OrderRootType.CLASSES)) {
+            for (VirtualFile root : libraryEntry.getRootFiles(OrderRootType.CLASSES)) {
               String path = root.getPath();
               if (path.endsWith("!/")) {
                 path = path.substring(0, path.length() - 2);

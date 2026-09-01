@@ -50,6 +50,7 @@
   <change-notes>
     <![CDATA[
       <ul>
+        <li><b>2.2.1</b> Replace deprecated LibraryOrSdkOrderEntry.getFiles() with getRootFiles().</li>
         <li><b>2.2.0</b> HotSwap for Java 8 only: a JDK with DCEVM already installed is assumed. Agent configured per the hotswapagent.org guide (-XXaltjvm=dcevm -javaagent:hotswap-agent.jar). Removed the Java version selection and the automatic JDK/DCEVM download.</li>
         <li><b>2.1.0</b> Add optional HotSwap mode (DCEVM + hotswap-agent).</li>
         <li><b>2.0.0</b> Convert to Gradle-based plugin.</li>
