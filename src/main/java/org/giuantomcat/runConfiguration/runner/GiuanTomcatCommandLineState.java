@@ -137,7 +137,8 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
       File props = new File(classesDir, "hotswap-agent.properties");
       String logFile = new File(catalinaBase, "logs/hotswap-agent.log").getAbsolutePath()
           .replace('\\', '/');
-      String content = "LOGGER=debug\nLOGFILE=" + logFile + "\n";
+      String content = "LOGGER=debug\nLOGFILE=" + logFile + "\n"
+          + "disabledPlugins=proxy,ClassInitPlugin,AnonymousClassPatch\n";
       if (autoHotswap) {
         content += "autoHotswap=true\n";
       }
