@@ -1,0 +1,68 @@
+<!-- Copyright 2000-2023 JetBrains s.r.o. and other contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file. -->
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+
+<idea-plugin>
+
+  <!-- Unique id for this plugin. Must stay constant for the life of the plugin. -->
+  <id>org.giuantomcat</id>
+
+  <!-- Text to display as name on Settings | Plugin page -->
+  <name>Giuan Tomcat</name>
+
+  <!-- Product and plugin compatibility requirements -->
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.modules.java</depends>
+
+  <!-- Text to display as description on Settings | Plugin page -->
+  <description>
+    <![CDATA[
+      <h3>Run Tomcat 9 directly from IntelliJ IDEA</h3>
+      <p>
+        "Giuan Tomcat" adds a <b>Giuan Tomcat</b> run configuration that starts an Apache
+        Tomcat 9 instance without requiring the bundled Tomcat integration or any external
+        plugin: the plugin <b>auto-generates the CATALINA_BASE</b> (conf, logs, work, temp,
+        webapps), writes <code>server.xml</code> and the per-application
+        <code>context.xml</code>, and launches <code>Bootstrap</code> with full native
+        IntelliJ debug support (breakpoints, variables, stack traces).
+      </p>
+      <ul>
+        <li><b>No build/deploy step</b> — the selected modules' <code>target/classes</code>
+          and dependency jars are mounted directly on <code>/WEB-INF/classes</code> and
+          <code>/WEB-INF/lib</code>.</li>
+        <li><b>Simple configuration</b> — choose CATALINA_HOME, CATALINA_BASE, web content
+          (docBase), context path and HTTP/shutdown ports from a single dialog.</li>
+        <li><b>Optional HotSwap mode (Java 8 + DCEVM + hotswap-agent)</b> — enable unlimited
+          runtime class redefinition (add/remove fields and methods without restarting).
+          DCEVM is always forced when HotSwap is active, in Run and Debug alike; in Debug the
+          IDE debugger performs the reload (JDWP), in Run the agent watches
+          <code>target/classes</code> automatically (<code>autoHotswap</code>).</li>
+        <li><b>Generated instance reuse</b> — the same CATALINA_BASE can be shared between
+          run configurations and started again after it is stopped.</li>
+      </ul>
+      <p>
+        HotSwap prerequisites (see the guide in the plugin repository):
+        a JDK 8 (8u181) patched with DCEVM (<code>-XXaltjvm=dcevm</code>) and a
+        <code>hotswap-agent.jar</code> downloaded from the HotswapAgent releases. Web
+        applications must be compiled with Java 8 bytecode.
+      </p>
+    ]]>
+  </description>
+  <change-notes>
+    <![CDATA[
+      <ul>
+        <li><b>2.2.0</b> HotSwap for Java 8 only: a JDK with DCEVM already installed is assumed. Agent configured per the hotswapagent.org guide (-XXaltjvm=dcevm -javaagent:hotswap-agent.jar). Removed the Java version selection and the automatic JDK/DCEVM download.</li>
+        <li><b>2.1.0</b> Add optional HotSwap mode (DCEVM + hotswap-agent).</li>
+        <li><b>2.0.0</b> Convert to Gradle-based plugin.</li>
+        <li><b>1.0.0</b> Release 2018.3 and earlier.</li>
+      </ul>
+    ]]>
+  </change-notes>
+
+  <!-- Text to display as company information on Settings | Plugin page -->
+  <vendor url="https://plugins.jetbrains.com">Giuan</vendor>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <configurationType implementation="org.giuantomcat.runConfiguration.GiuanTomcatConfigurationType"/>
+  </extensions>
+
+</idea-plugin>
