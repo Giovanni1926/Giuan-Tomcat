@@ -152,7 +152,7 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
     availableTree = new Tree(availableTreeModel);
     availableTree.setRootVisible(false);
     availableTree.setShowsRootHandles(true);
-    availableTree.setLineStyleAngled();
+
     availableTree.getSelectionModel()
         .setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
     availableTree.setCellRenderer(new FolderModuleRenderer());
