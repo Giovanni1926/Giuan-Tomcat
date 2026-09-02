@@ -24,9 +24,17 @@ import javax.swing.DropMode;
 import javax.swing.TransferHandler;
 import javax.swing.JList;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.ListCellRenderer;
+import javax.swing.UIManager;
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.GridLayout;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
@@ -57,6 +65,9 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
   private final JBList<Module> chosenList;
   private final JBList<Module> availableList;
   private JBList<Module> myDragSource;
+
+  private final Set<String> modulesSkipJarScan = new LinkedHashSet<>();
+  private static final int CHECKBOX_COLUMN_WIDTH = 24;
 
   public GiuanTomcatSettingsEditor(Project project) {
     myProject = project;
@@ -93,10 +104,28 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
     chosenModel = new CollectionListModel<>();
     chosenList = new JBList<>(chosenModel);
     configureList(chosenList);
+    chosenList.setCellRenderer(new ModuleSkipCellRenderer());
+    chosenList.addMouseListener(new MouseAdapter() {
+      @Override
+      public void mousePressed(MouseEvent e) {
+        if (e.getX() <= CHECKBOX_COLUMN_WIDTH) {
+          int index = chosenList.locationToIndex(e.getPoint());
+          if (index >= 0 && index < chosenList.getModel().getSize()) {
+            Module module = chosenList.getModel().getElementAt(index);
+            toggleSkipJarScan(module);
+            e.consume();
+          }
+        }
+      }
+    });
 
     availableModel = new CollectionListModel<>();
     availableList = new JBList<>(availableModel);
     configureList(availableList);
+
+    chosenList.setToolTipText(
+        "Tick the leftmost box of a module to skip Tomcat's startup scan "
+            + "(dependency jars + tag libraries) of that module's dependencies for faster startup.");
 
     myPanel = FormBuilder.createFormBuilder()
         .addLabeledComponent("CATALINA_HOME", catalinaHomeField)
@@ -138,15 +167,48 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
   }
 
   private JPanel createModulesPanel() {
-    JPanel panel = new JPanel(new GridLayout(1, 2, 8, 0));
-    panel.add(createListPanel("Selected modules", chosenList));
-    panel.add(createListPanel("Available modules", availableList));
-    return panel;
+    JPanel description = new JPanel(new BorderLayout());
+    JLabel desc = new JLabel(
+        "<html>Modules selected as the application classpath: compiled classes are mounted on "
+            + "<b>/WEB-INF/classes</b> and dependency jars on <b>/WEB-INF/lib</b>.</html>");
+    description.add(desc, BorderLayout.WEST);
+
+    JPanel lists = new JPanel(new GridLayout(1, 2, 8, 0));
+    lists.add(createListPanel(
+        "Selected modules (source of app classpath)",
+        "<html>Tick the <b>Skip scan</b> box to skip Tomcat's startup scan of this module's "
+            + "dependency jars &amp; taglibs (faster start).</html>",
+        true, chosenList));
+    lists.add(createListPanel(
+        "Available modules (drag left to add to classpath)",
+        "", false, availableList));
+
+    JPanel wrapper = new JPanel(new BorderLayout(0, 6));
+    wrapper.add(description, BorderLayout.NORTH);
+    wrapper.add(lists, BorderLayout.CENTER);
+    return wrapper;
   }
 
-  private JPanel createListPanel(String title, JBList<Module> list) {
-    JPanel panel = new JPanel(new BorderLayout());
-    panel.add(new JLabel(title), BorderLayout.NORTH);
+  private JPanel createListPanel(String title, String hint, boolean hasSkipColumn,
+                                 JBList<Module> list) {
+    JPanel panel = new JPanel(new BorderLayout(0, 4));
+
+    JPanel north = new JPanel(new BorderLayout(0, 2));
+    JLabel titleLabel = new JLabel(title);
+    north.add(titleLabel, BorderLayout.NORTH);
+    if (!hint.isEmpty()) {
+      JLabel hintLabel = new JLabel(hint);
+      hintLabel.setFont(hintLabel.getFont().deriveFont(Font.PLAIN, 10f));
+      hintLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+      north.add(hintLabel, BorderLayout.CENTER);
+    }
+    if (hasSkipColumn) {
+      JLabel legend = new JLabel("      Skip scan");
+      legend.setFont(legend.getFont().deriveFont(Font.BOLD, 10f));
+      legend.setForeground(UIManager.getColor("Label.foreground"));
+      north.add(legend, BorderLayout.SOUTH);
+    }
+    panel.add(north, BorderLayout.NORTH);
     panel.add(new JBScrollPane(list), BorderLayout.CENTER);
     return panel;
   }
@@ -173,6 +235,9 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
     dcevmJdkPath = configuration.getDcevmJdkPath() == null ? "" : configuration.getDcevmJdkPath();
     hotswapAgentPath =
         configuration.getHotswapAgentPath() == null ? "" : configuration.getHotswapAgentPath();
+
+    modulesSkipJarScan.clear();
+    modulesSkipJarScan.addAll(configuration.getModulesSkipJarScan());
 
     Set<String> selectedNames = configuration.getModuleNames();
     List<Module> chosen = new ArrayList<>();
@@ -206,12 +271,46 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
       selectedNames.add(module.getName());
     }
     configuration.setModuleNames(selectedNames);
+
+    configuration.setModulesSkipJarScan(new LinkedHashSet<>(modulesSkipJarScan));
   }
 
   @NotNull
   @Override
   protected JComponent createEditor() {
     return myPanel;
+  }
+
+  private void toggleSkipJarScan(Module module) {
+    if (!modulesSkipJarScan.add(module.getName())) {
+      modulesSkipJarScan.remove(module.getName());
+    }
+    chosenList.repaint();
+  }
+
+  private final class ModuleSkipCellRenderer extends JPanel
+      implements ListCellRenderer<Module> {
+    private final JCheckBox myCheckBox = new JCheckBox();
+    private final JLabel myLabel = new JLabel();
+
+    private ModuleSkipCellRenderer() {
+      super(new BorderLayout());
+      myCheckBox.setOpaque(false);
+      add(myCheckBox, BorderLayout.WEST);
+      add(myLabel, BorderLayout.CENTER);
+      setOpaque(true);
+    }
+
+    @Override
+    public Component getListCellRendererComponent(JList<? extends Module> list,
+                                                  Module value, int index,
+                                                  boolean isSelected, boolean cellHasFocus) {
+      myCheckBox.setSelected(modulesSkipJarScan.contains(value.getName()));
+      myLabel.setText(value.getName());
+      myLabel.setForeground(isSelected ? list.getSelectionForeground() : list.getForeground());
+      setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
+      return this;
+    }
   }
 
   private final class ModuleListTransferHandler extends TransferHandler {
@@ -277,6 +376,9 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
           Module module = findModule(name);
           if (module != null) {
             model.remove(module);
+          }
+          if (myDragSource == chosenList) {
+            modulesSkipJarScan.remove(name);
           }
         }
       }

@@ -38,7 +38,8 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
     String catalinaBase = myConfiguration.getCatalinaBase();
 
     ClasspathResolver.Classpath classpath =
-        ClasspathResolver.resolve(project, myConfiguration.getModuleNames());
+        ClasspathResolver.resolve(project, myConfiguration.getModuleNames(),
+            myConfiguration.getModulesSkipJarScan());
 
     try {
       CatalinaBaseGenerator.generate(

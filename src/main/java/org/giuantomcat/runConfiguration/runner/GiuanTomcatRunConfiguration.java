@@ -91,6 +91,16 @@ public class GiuanTomcatRunConfiguration
     getOptions().setModuleNames(moduleNames);
   }
 
+  @NotNull
+  public Set<String> getModulesSkipJarScan() {
+    Set<String> names = getOptions().getModulesSkipJarScan();
+    return names != null ? names : Collections.emptySet();
+  }
+
+  public void setModulesSkipJarScan(Set<String> modulesSkipJarScan) {
+    getOptions().setModulesSkipJarScan(modulesSkipJarScan);
+  }
+
   public boolean isHotSwapEnabled() {
     return getOptions().isHotSwapEnabled();
   }

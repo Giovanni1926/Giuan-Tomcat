@@ -2,16 +2,25 @@ package org.giuantomcat.tomcat;
 
 import java.io.File;
 import java.util.List;
+import java.util.Set;
 
 public final class ContextXmlBuilder {
 
   private ContextXmlBuilder() {
   }
 
-  public static String build(String webContent, List<String> classesDirs, List<String> libJars) {
+  public static String build(String webContent, List<String> classesDirs, List<String> libJars,
+                             Set<String> skippedJarNames) {
     StringBuilder sb = new StringBuilder();
     sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     sb.append("<Context docBase=\"").append(escapeXml(webContent)).append("\">\n");
+    if (skippedJarNames != null && !skippedJarNames.isEmpty()) {
+      String skip = escapeXml(String.join(",", skippedJarNames));
+      sb.append("  <JarScanner>\n");
+      sb.append("    <JarScanFilter pluggabilitySkip=\"").append(skip)
+          .append("\" tldSkip=\"").append(skip).append("\"/>\n");
+      sb.append("  </JarScanner>\n");
+    }
     sb.append("  <Resources>\n");
 
     for (String dir : classesDirs) {

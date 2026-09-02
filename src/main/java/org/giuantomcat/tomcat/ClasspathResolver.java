@@ -21,12 +21,14 @@ public final class ClasspathResolver {
   public static final class Classpath {
     public final List<String> classesDirs = new ArrayList<>();
     public final List<String> libJars = new ArrayList<>();
+    public final Set<String> skippedJarNames = new LinkedHashSet<>();
   }
 
   private ClasspathResolver() {
   }
 
-  public static Classpath resolve(Project project, Set<String> moduleNames) {
+  public static Classpath resolve(Project project, Set<String> moduleNames,
+                                  Set<String> skipScanModuleNames) {
     Classpath classpath = new Classpath();
     Set<String> classesSet = new LinkedHashSet<>();
     Set<String> jarsSet = new LinkedHashSet<>();
@@ -35,6 +37,8 @@ public final class ClasspathResolver {
       if (!moduleNames.contains(module.getName())) {
         continue;
       }
+      boolean skip =
+          skipScanModuleNames != null && skipScanModuleNames.contains(module.getName());
 
       for (VirtualFile contentRoot : ModuleRootManager.getInstance(module).getContentRoots()) {
         File targetClasses = new File(contentRoot.getPath(), "target/classes");
@@ -57,6 +61,9 @@ public final class ClasspathResolver {
               }
               if (path.toLowerCase().endsWith(".jar")) {
                 jarsSet.add(path);
+                if (skip) {
+                  classpath.skippedJarNames.add(new File(path).getName());
+                }
               }
             }
           }
@@ -66,6 +73,7 @@ public final class ClasspathResolver {
 
     System.out.println("[GiuanTomcat] classes dirs: " + classesSet);
     System.out.println("[GiuanTomcat] lib jars: " + jarsSet);
+    System.out.println("[GiuanTomcat] skipped jar scan: " + classpath.skippedJarNames);
 
     classpath.classesDirs.addAll(classesSet);
     classpath.libJars.addAll(jarsSet);

@@ -35,6 +35,9 @@ Campi (`StoredProperty`):
 - `httpPort` (String, default `"8080"`).
 - `shutdownPort` (String, default `"8005"`).
 - `moduleNames` (Set<String>).
+- `modulesSkipJarScan` (Set<String>) — sottoinsieme dei moduli scelti per cui lo scan Tomcat dei jar di
+  dipendenza viene saltato completamente (spuntato per-modulo nella lista Selected modules): sia lo scan
+  pluggability (SCI/annotazioni) sia quello TLD/taglib.
 - `hotSwapEnabled` (Boolean, default `false`) — abilita la modalità HotSwap.
 - `dcevmJdkPath` (String) — home della JDK DCEVM dedicata (JDK 8 con DCEVM già installato).
 - `hotswapAgentPath` (String) — percorso di `hotswap-agent.jar` (selezionato manualmente).
@@ -94,6 +97,9 @@ Metodi:
 - **Jar (`/WEB-INF/lib`)**: `OrderEnumerator.orderEntries(module).recursively().withoutSdk().libraries().getRoots()`
   filtrando i file `.jar` (esclude JDK).
 - Deduplicazione in `LinkedHashSet`.
+- **Skip scan (per modulo)**: i moduli in `skipScanModuleNames` marcano i propri jar come "da non
+  scansionare"; un jar è saltato se compare in **almeno un** modulo flaggato. I nomi-file risultanti
+  finiscono in `Classpath.skippedJarNames` (il mount resta comunque attivo).
 
 ## 7. `CatalinaBaseGenerator` + `ContextXmlBuilder`
 
@@ -101,10 +107,16 @@ Metodi:
 2. Copia da `CATALINA_HOME/conf` i default mancanti: `web.xml`, `catalina.properties`,
    `tomcat-users.xml`, `logging.properties`.
 3. Genera `conf/server.xml` da template con `shutdownPort` e `httpPort`.
-4. Genera `conf/Catalina/localhost/<context>.xml` (nome = `contextPath` senza `/`; `ROOT` per `/`):
+4. Genera `conf/Catalina/localhost/<context>.xml` (nome = `contextPath` senza `/`; `ROOT` per `/`).
+   Se `skippedJarNames` non è vuoto, antepone un blocco `<JarScanner><JarScanFilter
+   pluggabilitySkip="..." tldSkip="..."/></JarScanner>` che esclude dallo scan (pluggability **e**
+   TLD/taglib) i jar dei moduli flaggati; i jar degli altri moduli restano scansionati:
 
 ```xml
 <Context docBase="<webContent>">
+  <JarScanner>
+    <JarScanFilter pluggabilitySkip="dep1.jar,dep2.jar" tldSkip="dep1.jar,dep2.jar"/>
+  </JarScanner>
   <Resources>
     <PostResources className="org.apache.catalina.webresources.DirResourceSet"
                    base="<module>/target/classes" webAppMount="/WEB-INF/classes"/>

@@ -39,7 +39,8 @@ public final class CatalinaBaseGenerator {
     File contextFile = new File(new File(new File(base, "conf"), "Catalina/localhost"),
         contextFileName(contextPath));
     writeFile(contextFile,
-        ContextXmlBuilder.build(webContent, classpath.classesDirs, classpath.libJars));
+        ContextXmlBuilder.build(webContent, classpath.classesDirs, classpath.libJars,
+            classpath.skippedJarNames));
   }
 
   static String contextFileName(String contextPath) {
