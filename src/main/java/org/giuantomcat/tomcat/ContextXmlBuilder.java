@@ -16,7 +16,7 @@ public final class ContextXmlBuilder {
     sb.append("<Context docBase=\"").append(escapeXml(webContent)).append("\">\n");
     if (skippedJarNames != null && !skippedJarNames.isEmpty()) {
       String skip = escapeXml(String.join(",", skippedJarNames));
-      sb.append("  <JarScanner>\n");
+      sb.append("  <JarScanner scanManifest=\"false\">\n");
       sb.append("    <JarScanFilter pluggabilitySkip=\"").append(skip)
           .append("\" tldSkip=\"").append(skip).append("\"/>\n");
       sb.append("  </JarScanner>\n");

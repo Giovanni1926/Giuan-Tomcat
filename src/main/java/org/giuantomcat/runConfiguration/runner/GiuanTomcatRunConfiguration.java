@@ -101,6 +101,14 @@ public class GiuanTomcatRunConfiguration
     getOptions().setModulesSkipJarScan(modulesSkipJarScan);
   }
 
+  public boolean isSkipAnnotationScan() {
+    return getOptions().isSkipAnnotationScan();
+  }
+
+  public void setSkipAnnotationScan(boolean skipAnnotationScan) {
+    getOptions().setSkipAnnotationScan(skipAnnotationScan);
+  }
+
   public boolean isHotSwapEnabled() {
     return getOptions().isHotSwapEnabled();
   }

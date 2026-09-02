@@ -23,6 +23,7 @@ public final class CatalinaBaseGenerator {
   public static void generate(String catalinaHome, String catalinaBase,
                               String webContent, String contextPath,
                               String httpPort, String shutdownPort,
+                              boolean skipAnnotationScan,
                               Classpath classpath) throws IOException {
     File base = new File(catalinaBase);
     mkdirs(new File(base, "conf/Catalina/localhost"));
@@ -41,6 +42,47 @@ public final class CatalinaBaseGenerator {
     writeFile(contextFile,
         ContextXmlBuilder.build(webContent, classpath.classesDirs, classpath.libJars,
             classpath.skippedJarNames));
+
+    if (skipAnnotationScan) {
+      enableMetadataComplete(webContent);
+    }
+  }
+
+  private static void enableMetadataComplete(String webContent) {
+    File webXml = new File(new File(webContent, "WEB-INF"), "web.xml");
+    if (!webXml.isFile()) {
+      System.out.println("[GiuanTomcat] skip annotation scan: WEB-INF/web.xml non trovato in "
+          + webContent + ", nessuna modifica applicata.");
+      return;
+    }
+    try {
+      String content = new String(Files.readAllBytes(webXml.toPath()), StandardCharsets.UTF_8);
+      int start = content.toLowerCase(java.util.Locale.ROOT).indexOf("<web-app");
+      if (start < 0) {
+        System.out.println("[GiuanTomcat] skip annotation scan: <web-app> non trovato, nessuna "
+            + "modifica applicata.");
+        return;
+      }
+      int endTag = content.indexOf('>', start);
+      if (endTag < 0) {
+        return;
+      }
+      String openTag = content.substring(start, endTag);
+      if (openTag.toLowerCase(java.util.Locale.ROOT).contains("metadata-complete")) {
+        System.out.println("[GiuanTomcat] skip annotation scan: metadata-complete già presente, "
+            + "nessuna modifica.");
+        return;
+      }
+      String patched = content.substring(0, start)
+          + openTag + " metadata-complete=\"true\""
+          + content.substring(endTag);
+      Files.write(webXml.toPath(), patched.getBytes(StandardCharsets.UTF_8));
+      System.out.println("[GiuanTomcat] skip annotation scan: aggiunto metadata-complete=\"true\" "
+          + "a " + webXml.getAbsolutePath());
+    } catch (IOException e) {
+      System.out.println("[GiuanTomcat] skip annotation scan: errore durante la modifica di "
+          + webXml.getAbsolutePath() + ": " + e.getMessage());
+    }
   }
 
   static String contextFileName(String contextPath) {

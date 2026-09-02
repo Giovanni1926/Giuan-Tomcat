@@ -31,6 +31,9 @@ public class GiuanTomcatRunConfigurationOptions extends RunConfigurationOptions 
   private final StoredProperty<Set<String>> myModulesSkipJarScan =
       stringSet().provideDelegate(this, "modulesSkipJarScan");
 
+  private final StoredProperty<Boolean> mySkipAnnotationScan =
+      property(false).provideDelegate(this, "skipAnnotationScan");
+
   private final StoredProperty<Boolean> myHotSwapEnabled =
       property(false).provideDelegate(this, "hotSwapEnabled");
 
@@ -102,6 +105,14 @@ public class GiuanTomcatRunConfigurationOptions extends RunConfigurationOptions 
 
   public void setModulesSkipJarScan(Set<String> modulesSkipJarScan) {
     myModulesSkipJarScan.setValue(this, modulesSkipJarScan);
+  }
+
+  public boolean isSkipAnnotationScan() {
+    return mySkipAnnotationScan.getValue(this);
+  }
+
+  public void setSkipAnnotationScan(boolean skipAnnotationScan) {
+    mySkipAnnotationScan.setValue(this, skipAnnotationScan);
   }
 
   public boolean isHotSwapEnabled() {

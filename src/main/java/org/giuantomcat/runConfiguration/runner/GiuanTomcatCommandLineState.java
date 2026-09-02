@@ -46,6 +46,7 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
           catalinaHome, catalinaBase,
           myConfiguration.getWebContent(), myConfiguration.getContextPath(),
           myConfiguration.getHttpPort(), myConfiguration.getShutdownPort(),
+          myConfiguration.isSkipAnnotationScan(),
           classpath);
     } catch (IOException e) {
       throw new ExecutionException("Failed to generate catalina base", e);
