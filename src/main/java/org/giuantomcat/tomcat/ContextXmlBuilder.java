@@ -1,7 +1,5 @@
 package org.giuantomcat.tomcat;
 
-import java.io.File;
-import java.util.List;
 import java.util.Set;
 
 public final class ContextXmlBuilder {
@@ -9,7 +7,7 @@ public final class ContextXmlBuilder {
   private ContextXmlBuilder() {
   }
 
-  public static String build(String webContent, List<String> classesDirs, List<String> libJars,
+  public static String build(String webContent, String mergedClassesDir, String mergedLibDir,
                              Set<String> skippedJarNames) {
     StringBuilder sb = new StringBuilder();
     sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
@@ -33,17 +31,16 @@ public final class ContextXmlBuilder {
     }
     sb.append("  <Resources>\n");
 
-    for (String dir : classesDirs) {
+    if (mergedClassesDir != null) {
       sb.append("    <PreResources className=\"org.apache.catalina.webresources.DirResourceSet\"\n");
-      sb.append("                   base=\"").append(escapeXml(dir))
+      sb.append("                   base=\"").append(escapeXml(mergedClassesDir))
           .append("\" webAppMount=\"/WEB-INF/classes\"/>\n");
     }
 
-    for (String jar : libJars) {
-      String jarName = new File(jar).getName();
-      sb.append("    <PreResources className=\"org.apache.catalina.webresources.FileResourceSet\"\n");
-      sb.append("                   base=\"").append(escapeXml(jar))
-          .append("\" webAppMount=\"/WEB-INF/lib/").append(escapeXml(jarName)).append("\"/>\n");
+    if (mergedLibDir != null) {
+      sb.append("    <PreResources className=\"org.apache.catalina.webresources.DirResourceSet\"\n");
+      sb.append("                   base=\"").append(escapeXml(mergedLibDir))
+          .append("\" webAppMount=\"/WEB-INF/lib\"/>\n");
     }
 
     sb.append("  </Resources>\n");

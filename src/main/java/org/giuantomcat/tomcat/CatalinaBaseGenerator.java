@@ -1,6 +1,7 @@
 package org.giuantomcat.tomcat;
 
 import org.giuantomcat.tomcat.ClasspathResolver.Classpath;
+import org.giuantomcat.tomcat.ResourceConsolidator.Merged;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,10 +38,12 @@ public final class CatalinaBaseGenerator {
     writeFile(new File(new File(base, "conf"), "server.xml"),
         buildServerXml(httpPort, shutdownPort));
 
+    Merged merged = ResourceConsolidator.consolidate(catalinaBase, classpath);
+
     File contextFile = new File(new File(new File(base, "conf"), "Catalina/localhost"),
         contextFileName(contextPath));
     writeFile(contextFile,
-        ContextXmlBuilder.build(webContent, classpath.classesDirs, classpath.libJars,
+        ContextXmlBuilder.build(webContent, merged.classesDir, merged.libDir,
             classpath.skippedJarNames));
 
     applySkipAnnotationScan(webContent, skipAnnotationScan);
