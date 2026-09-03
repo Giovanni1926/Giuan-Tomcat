@@ -64,9 +64,11 @@ Metodi:
 
 ## 4. Esecuzione — `GiuanTomcatRunConfiguration`
 
-- `skipAnnotationScan` (Boolean) — flag globale: se attivo, all'avvio il generator modifica il
-  `WEB-INF/web.xml` del web content aggiungendo `metadata-complete="true"` al `<web-app>` e un
-  `<absolute-ordering/>` vuoto (idempotente, aggiunge soltanto).
+- `skipAnnotationScan` (Boolean) — flag globale: all'avvio il generator modifica il
+  `WEB-INF/web.xml` del web content. Se attivo aggiunge `metadata-complete="true"` al `<web-app>` e
+  un `<absolute-ordering/>` vuoto; se disattivo **rimuove** esattamente ciò che aveva aggiunto.
+  Le aggiunte sono marcate da un commento `<!--[GiuanTomcat skip:annotation-scan]-->` così da
+  distinguerle da contenuti preesistenti (mai rimossi). Idempotente.
 - `getConfigurationEditor()` → `GiuanTomcatSettingsEditor`.
 - `getState(executor, environment)` → `GiuanTomcatCommandLineState`.
 - Implementa `JavaDebugAware` (debug nativo IntelliJ):

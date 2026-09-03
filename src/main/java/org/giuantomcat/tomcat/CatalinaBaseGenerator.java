@@ -43,60 +43,103 @@ public final class CatalinaBaseGenerator {
         ContextXmlBuilder.build(webContent, classpath.classesDirs, classpath.libJars,
             classpath.skippedJarNames));
 
-    if (skipAnnotationScan) {
-      enableMetadataComplete(webContent);
-    }
+    applySkipAnnotationScan(webContent, skipAnnotationScan);
   }
 
-  private static void enableMetadataComplete(String webContent) {
+  private static final String SKIP_MARKER = "<!--[GiuanTomcat skip:annotation-scan]-->";
+  private static final String METADATA_ATTR = " metadata-complete=\"true\"";
+  private static final String LOG_PREFIX = "[GiuanTomcat] skip annotation scan: ";
+
+  private static void applySkipAnnotationScan(String webContent, boolean skip) {
     File webXml = new File(new File(webContent, "WEB-INF"), "web.xml");
     if (!webXml.isFile()) {
-      System.out.println("[GiuanTomcat] skip annotation scan: WEB-INF/web.xml non trovato in "
-          + webContent + ", nessuna modifica applicata.");
+      System.out.println(LOG_PREFIX + "WEB-INF/web.xml non trovato in " + webContent
+          + ", nessuna modifica applicata.");
       return;
     }
     try {
       String content = new String(Files.readAllBytes(webXml.toPath()), StandardCharsets.UTF_8);
-      int start = content.toLowerCase(java.util.Locale.ROOT).indexOf("<web-app");
-      if (start < 0) {
-        System.out.println("[GiuanTomcat] skip annotation scan: <web-app> non trovato, nessuna "
-            + "modifica applicata.");
-        return;
-      }
-      int endTag = content.indexOf('>', start);
-      if (endTag < 0) {
-        return;
-      }
-      boolean metadataAdded = false;
-      String patched = content;
-      String lowerOpen = content.substring(start, endTag).toLowerCase(java.util.Locale.ROOT);
-      if (!lowerOpen.contains("metadata-complete")) {
-        patched = patched.substring(0, start)
-            + patched.substring(start, endTag) + " metadata-complete=\"true\""
-            + patched.substring(endTag);
-        endTag += " metadata-complete=\"true\"".length();
-        metadataAdded = true;
-      }
-      boolean hasOrdering = patched.toLowerCase(java.util.Locale.ROOT)
-          .indexOf("<absolute-ordering", endTag) >= 0;
-      if (!hasOrdering) {
-        patched = patched.substring(0, endTag + 1) + "\n    <absolute-ordering/>"
-            + patched.substring(endTag + 1);
-        System.out.println("[GiuanTomcat] skip annotation scan: aggiunto metadata-complete=\"true\" "
-            + (metadataAdded ? "e <absolute-ordering/>" : "(già presente) e <absolute-ordering/>")
+      String patched = skip ? addSkipAnnotationMarkers(content) : removeSkipAnnotationMarkers(content);
+      if (patched != null && !patched.equals(content)) {
+        Files.write(webXml.toPath(), patched.getBytes(StandardCharsets.UTF_8));
+        System.out.println(LOG_PREFIX + (skip
+            ? "aggiunto metadata-complete=\"true\" e <absolute-ordering/>"
+            : "rimosso metadata-complete=\"true\" e <absolute-ordering/> aggiunti dal plugin")
             + " a " + webXml.getAbsolutePath());
-      } else if (metadataAdded) {
-        System.out.println("[GiuanTomcat] skip annotation scan: aggiunto metadata-complete=\"true\" "
-            + "a " + webXml.getAbsolutePath() + " (<absolute-ordering> già presente)");
-      } else {
-        System.out.println("[GiuanTomcat] skip annotation scan: metadata-complete=\"true\" e "
-            + "<absolute-ordering> già presenti, nessuna modifica.");
       }
-      Files.write(webXml.toPath(), patched.getBytes(StandardCharsets.UTF_8));
     } catch (IOException e) {
-      System.out.println("[GiuanTomcat] skip annotation scan: errore durante la modifica di "
-          + webXml.getAbsolutePath() + ": " + e.getMessage());
+      System.out.println(LOG_PREFIX + "errore durante la modifica di " + webXml.getAbsolutePath()
+          + ": " + e.getMessage());
     }
+  }
+
+  private static String addSkipAnnotationMarkers(String content) {
+    int start = content.toLowerCase(java.util.Locale.ROOT).indexOf("<web-app");
+    if (start < 0) {
+      System.out.println(LOG_PREFIX + "<web-app> non trovato, nessuna modifica applicata.");
+      return content;
+    }
+    int endTag = content.indexOf('>', start);
+    if (endTag < 0) {
+      return content;
+    }
+    String patched = content;
+    boolean metadataAdded = false;
+    String lowerOpen = content.substring(start, endTag).toLowerCase(java.util.Locale.ROOT);
+    if (!lowerOpen.contains("metadata-complete")) {
+      patched = patched.substring(0, start)
+          + patched.substring(start, endTag) + METADATA_ATTR
+          + patched.substring(endTag);
+      endTag += METADATA_ATTR.length();
+      metadataAdded = true;
+    }
+    if (patched.contains(SKIP_MARKER)) {
+      return patched;
+    }
+    boolean hasOrdering = patched.toLowerCase(java.util.Locale.ROOT)
+        .indexOf("<absolute-ordering", endTag) >= 0;
+    if (!hasOrdering) {
+      patched = patched.substring(0, endTag + 1)
+          + "\n    " + SKIP_MARKER + "\n    <absolute-ordering/>"
+          + patched.substring(endTag + 1);
+    } else if (metadataAdded) {
+      patched = patched.substring(0, endTag + 1)
+          + "\n    " + SKIP_MARKER
+          + patched.substring(endTag + 1);
+    }
+    return patched;
+  }
+
+  private static String removeSkipAnnotationMarkers(String content) {
+    int marker = content.indexOf(SKIP_MARKER);
+    if (marker < 0) {
+      return content;
+    }
+    int lineStart = content.lastIndexOf('\n', marker);
+    int cut = lineStart < 0 ? marker : lineStart;
+    int after;
+    int ordering = content.indexOf("<absolute-ordering", marker);
+    if (ordering >= 0) {
+      int orderingEnd = content.indexOf('>', ordering);
+      after = orderingEnd < 0 ? marker + SKIP_MARKER.length() : orderingEnd + 1;
+    } else {
+      after = marker + SKIP_MARKER.length();
+    }
+    String patched = content.substring(0, cut) + content.substring(after);
+
+    int start = patched.toLowerCase(java.util.Locale.ROOT).indexOf("<web-app");
+    if (start >= 0) {
+      int endTag = patched.indexOf('>', start);
+      if (endTag >= 0) {
+        String openTag = patched.substring(start, endTag);
+        if (openTag.endsWith(METADATA_ATTR)) {
+          patched = patched.substring(0, start)
+              + openTag.substring(0, openTag.length() - METADATA_ATTR.length())
+              + patched.substring(endTag);
+        }
+      }
+    }
+    return patched;
   }
 
   static String contextFileName(String contextPath) {

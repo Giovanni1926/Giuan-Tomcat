@@ -119,7 +119,8 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
             + "(@WebServlet/@WebFilter/...) and web-fragment/SCI discovery.<br>"
             + "On run, if enabled, it writes <b>metadata-complete=\"true\"</b> into "
             + "<b>&lt;web-app&gt;</b> and inserts an empty <b>&lt;absolute-ordering/&gt;</b> in the "
-            + "docBase WEB-INF/web.xml (only adds, never removes; applied idempotently).</html>");
+            + "docBase WEB-INF/web.xml. If later disabled, the plugin <b>removes</b> the pieces it "
+            + "added (tracked by a marker comment); pre-existing elements are left untouched.</html>");
 
     hotSwapConfigureButton = new JButton("Configure...");
     hotSwapConfigureButton.addActionListener(e -> openHotSwapConfigDialog());

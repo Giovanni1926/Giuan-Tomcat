@@ -52,8 +52,10 @@
               empty <code>&lt;absolute-ordering/&gt;</code>. What is skipped: Servlet 3.0 annotation
               scanning (<code>@WebServlet</code>/<code>@WebFilter</code>/...) and the discovery and
               processing of web-fragments and ServletContainerInitializer registered in the
-              application jars. Existing attributes/elements are never removed; changes are applied
-              idempotently.</li>
+              application jars. The additions are tracked with a marker comment so that disabling the
+              option on a later run <b>removes exactly what the plugin added</b>; any pre-existing
+              <code>metadata-complete</code>/<code>&lt;absolute-ordering&gt;</code> are left
+              untouched. Changes are applied idempotently.</li>
           </ul>
         </li>
         <li><b>Simple configuration</b> — choose CATALINA_HOME, CATALINA_BASE, web content

@@ -25,7 +25,9 @@ La run configuration "Giuan Tomcat" espone i seguenti campi:
   - **Skip annotation scan (globale)** — all'avvio, se attivo, il plugin modifica il
     `WEB-INF/web.xml` del web content aggiungendo `metadata-complete="true"` al `<web-app>` e un
     `<absolute-ordering/>` vuoto (impedisce scan delle annotazioni e scoperta di
-    web-fragment/SCI). Idempotente: aggiunge soltanto, non rimuove nulla.
+    web-fragment/SCI). Le aggiunte sono marcate con un commento: se poi disattivi l'opzione, in una
+    successiva esecuzione il plugin **rimuove** esattamente ciò che ha aggiunto, lasciando intatti
+    elementi preesistenti. Idempotente.
 - **Enable HotSwap (DCEVM + hotswap-agent)** — spuntando la checkbox il plugin apre un dialog
   dove selezionare:
   - **DCEVM JDK** — una JDK 8 con DCEVM già installato come altjvm (prerequisito: segui la
