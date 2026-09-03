@@ -17,6 +17,15 @@ La run configuration "Giuan Tomcat" espone i seguenti campi:
 - **Shutdown port** — porta di shutdown (default `8005`).
 - **Selected/Available modules** — moduli i cui `target/classes` e jar di dipendenza vengono
   montati rispettivamente su `/WEB-INF/classes` e `/WEB-INF/lib`.
+  - **Skip scan (per modulo, spunta nella lista Selected)** — per i moduli flaggati il plugin
+    genera nel `context.xml` un blocco `<JarScanner>/<JarScanFilter>` che salta lo scan di startup
+    (pluggability/SCI e TLD/taglib) dei **soli jar di dipendenza di quei moduli**: sul `<Context>`
+    imposta `reloadable="false"` e `containerSciFilter`, e disattiva
+    `scanClassPath`/`scanBootstrapClassPath`/`scanAllDirectories`/`scanAllFiles`.
+  - **Skip annotation scan (globale)** — all'avvio, se attivo, il plugin modifica il
+    `WEB-INF/web.xml` del web content aggiungendo `metadata-complete="true"` al `<web-app>` e un
+    `<absolute-ordering/>` vuoto (impedisce scan delle annotazioni e scoperta di
+    web-fragment/SCI). Idempotente: aggiunge soltanto, non rimuove nulla.
 - **Enable HotSwap (DCEVM + hotswap-agent)** — spuntando la checkbox il plugin apre un dialog
   dove selezionare:
   - **DCEVM JDK** — una JDK 8 con DCEVM già installato come altjvm (prerequisito: segui la

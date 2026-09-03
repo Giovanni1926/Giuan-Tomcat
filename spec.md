@@ -36,8 +36,8 @@ Campi (`StoredProperty`):
 - `shutdownPort` (String, default `"8005"`).
 - `moduleNames` (Set<String>).
 - `modulesSkipJarScan` (Set<String>) — sottoinsieme dei moduli scelti per cui lo scan Tomcat dei jar di
-  dipendenza viene saltato completamente (spuntato per-modulo nella lista Selected modules): sia lo scan
-  pluggability (SCI/annotazioni) sia quello TLD/taglib.
+  dipendenza viene saltato (spuntato per-modulo nella lista Selected modules): sia lo scan pluggability
+  (SCI/annotazioni) sia quello TLD/taglib **dei soli jar di tali moduli** (vedi §6/§7).
 - `hotSwapEnabled` (Boolean, default `false`) — abilita la modalità HotSwap.
 - `dcevmJdkPath` (String) — home della JDK DCEVM dedicata (JDK 8 con DCEVM già installato).
 - `hotswapAgentPath` (String) — percorso di `hotswap-agent.jar` (selezionato manualmente).
@@ -64,6 +64,9 @@ Metodi:
 
 ## 4. Esecuzione — `GiuanTomcatRunConfiguration`
 
+- `skipAnnotationScan` (Boolean) — flag globale: se attivo, all'avvio il generator modifica il
+  `WEB-INF/web.xml` del web content aggiungendo `metadata-complete="true"` al `<web-app>` e un
+  `<absolute-ordering/>` vuoto (idempotente, aggiunge soltanto).
 - `getConfigurationEditor()` → `GiuanTomcatSettingsEditor`.
 - `getState(executor, environment)` → `GiuanTomcatCommandLineState`.
 - Implementa `JavaDebugAware` (debug nativo IntelliJ):
@@ -108,23 +111,31 @@ Metodi:
    `tomcat-users.xml`, `logging.properties`.
 3. Genera `conf/server.xml` da template con `shutdownPort` e `httpPort`.
 4. Genera `conf/Catalina/localhost/<context>.xml` (nome = `contextPath` senza `/`; `ROOT` per `/`).
-   Se `skippedJarNames` non è vuoto, antepone un blocco `<JarScanner><JarScanFilter
-   pluggabilitySkip="..." tldSkip="..."/></JarScanner>` che esclude dallo scan (pluggability **e**
-   TLD/taglib) i jar dei moduli flaggati; i jar degli altri moduli restano scansionati:
+   Se `skippedJarNames` non è vuoto, il `<Context>` riceve `reloadable="false"` e
+   `containerSciFilter="org\.apache\.tomcat\.websocket\.server\.WsSci"` e viene anteposto un blocco
+   `<JarScanner>` con `scanClassPath`/`scanBootstrapClassPath`/`scanAllDirectories`/`scanAllFiles`
+   a `false` e un `<JarScanFilter pluggabilitySkip="..." tldSkip="..."/>` che esclude dallo scan
+   (pluggability **e** TLD/taglib) **i soli jar dei moduli flaggati**; i jar degli altri moduli
+   restano scansionati e tutti i jar restano montati:
 
 ```xml
-<Context docBase="<webContent>">
-  <JarScanner>
+<Context docBase="<webContent>" reloadable="false"
+         containerSciFilter="org\.apache\.tomcat\.websocket\.server\.WsSci">
+  <JarScanner scanClassPath="false" scanBootstrapClassPath="false"
+              scanAllDirectories="false" scanAllFiles="false">
     <JarScanFilter pluggabilitySkip="dep1.jar,dep2.jar" tldSkip="dep1.jar,dep2.jar"/>
   </JarScanner>
   <Resources>
-    <PostResources className="org.apache.catalina.webresources.DirResourceSet"
+    <PreResources className="org.apache.catalina.webresources.DirResourceSet"
                    base="<module>/target/classes" webAppMount="/WEB-INF/classes"/>
-    <PostResources className="org.apache.catalina.webresources.JarResourceSet"
+    <PreResources className="org.apache.catalina.webresources.FileResourceSet"
                    base="<dep>.jar" webAppMount="/WEB-INF/lib/<dep>.jar"/>
   </Resources>
 </Context>
 ```
+
+Se invece non ci sono jar da saltare, il `<Context>` resta invariato (`<Context docBase="...">`)
+e nessun `<JarScanner>` viene emesso.
 
 ## 8. Config / build
 

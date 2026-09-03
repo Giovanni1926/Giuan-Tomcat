@@ -113,13 +113,13 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
     });
 
     skipAnnotationScanCheckBox = new JBCheckBox(
-        "Skip Servlet annotation scan (adds metadata-complete=\"true\" to WEB-INF/web.xml)");
+        "Skip Servlet annotation scan (adds metadata-complete + absolute-ordering to WEB-INF/web.xml)");
     skipAnnotationScanCheckBox.setToolTipText(
         "<html>Speeds up startup on large apps by disabling Servlet 3.0 annotation scanning "
-            + "(@WebServlet/@WebFilter/...) and web-fragment discovery.<br>"
+            + "(@WebServlet/@WebFilter/...) and web-fragment/SCI discovery.<br>"
             + "On run, if enabled, it writes <b>metadata-complete=\"true\"</b> into "
-            + "<b>&lt;web-app&gt;</b> of the docBase WEB-INF/web.xml (only adds the attribute, "
-            + "never removes it).</html>");
+            + "<b>&lt;web-app&gt;</b> and inserts an empty <b>&lt;absolute-ordering/&gt;</b> in the "
+            + "docBase WEB-INF/web.xml (only adds, never removes; applied idempotently).</html>");
 
     hotSwapConfigureButton = new JButton("Configure...");
     hotSwapConfigureButton.addActionListener(e -> openHotSwapConfigDialog());
@@ -146,7 +146,10 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
     });
     chosenList.setToolTipText(
         "Tick the leftmost box of a module to skip Tomcat's startup scan "
-            + "(dependency jars + tag libraries) of that module's dependencies for faster startup.");
+            + "(dependency jars + tag libraries) of that module's dependencies for faster startup. "
+            + "For the context it sets reloadable=false and containerSciFilter, disables "
+            + "classpath/bootstrap/all-directory/all-file scanning and lists those jars in "
+            + "pluggabilitySkip/tldSkip of the generated context.xml.");
 
     availableTreeModel = new DefaultTreeModel(new DefaultMutableTreeNode());
     availableTree = new Tree(availableTreeModel);
@@ -246,8 +249,8 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
     JLabel title = new JLabel("Selected modules (source of app classpath)");
     north.add(title, BorderLayout.NORTH);
     JLabel hint = new JLabel(
-        "<html>Tick the <b>Skip scan</b> box to skip Tomcat's startup scan of this module's "
-            + "dependency jars &amp; taglibs (faster start).</html>");
+        "<html>Tick the <b>Skip scan</b> box to skip Tomcat's startup scan (pluggability/SCI "
+            + "&amp; TLD) of this module's dependency jars (faster start).</html>");
     hint.setFont(hint.getFont().deriveFont(Font.PLAIN, 10f));
     hint.setForeground(UIManager.getColor("Label.disabledForeground"));
     north.add(hint, BorderLayout.CENTER);

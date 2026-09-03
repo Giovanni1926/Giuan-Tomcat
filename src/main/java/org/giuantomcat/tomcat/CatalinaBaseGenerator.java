@@ -67,18 +67,32 @@ public final class CatalinaBaseGenerator {
       if (endTag < 0) {
         return;
       }
-      String openTag = content.substring(start, endTag);
-      if (openTag.toLowerCase(java.util.Locale.ROOT).contains("metadata-complete")) {
-        System.out.println("[GiuanTomcat] skip annotation scan: metadata-complete già presente, "
-            + "nessuna modifica.");
-        return;
+      boolean metadataAdded = false;
+      String patched = content;
+      String lowerOpen = content.substring(start, endTag).toLowerCase(java.util.Locale.ROOT);
+      if (!lowerOpen.contains("metadata-complete")) {
+        patched = patched.substring(0, start)
+            + patched.substring(start, endTag) + " metadata-complete=\"true\""
+            + patched.substring(endTag);
+        endTag += " metadata-complete=\"true\"".length();
+        metadataAdded = true;
       }
-      String patched = content.substring(0, start)
-          + openTag + " metadata-complete=\"true\""
-          + content.substring(endTag);
+      boolean hasOrdering = patched.toLowerCase(java.util.Locale.ROOT)
+          .indexOf("<absolute-ordering", endTag) >= 0;
+      if (!hasOrdering) {
+        patched = patched.substring(0, endTag + 1) + "\n    <absolute-ordering/>"
+            + patched.substring(endTag + 1);
+        System.out.println("[GiuanTomcat] skip annotation scan: aggiunto metadata-complete=\"true\" "
+            + (metadataAdded ? "e <absolute-ordering/>" : "(già presente) e <absolute-ordering/>")
+            + " a " + webXml.getAbsolutePath());
+      } else if (metadataAdded) {
+        System.out.println("[GiuanTomcat] skip annotation scan: aggiunto metadata-complete=\"true\" "
+            + "a " + webXml.getAbsolutePath() + " (<absolute-ordering> già presente)");
+      } else {
+        System.out.println("[GiuanTomcat] skip annotation scan: metadata-complete=\"true\" e "
+            + "<absolute-ordering> già presenti, nessuna modifica.");
+      }
       Files.write(webXml.toPath(), patched.getBytes(StandardCharsets.UTF_8));
-      System.out.println("[GiuanTomcat] skip annotation scan: aggiunto metadata-complete=\"true\" "
-          + "a " + webXml.getAbsolutePath());
     } catch (IOException e) {
       System.out.println("[GiuanTomcat] skip annotation scan: errore durante la modifica di "
           + webXml.getAbsolutePath() + ": " + e.getMessage());

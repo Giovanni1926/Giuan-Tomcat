@@ -31,6 +31,31 @@
         <li><b>No build/deploy step</b> — the selected modules' <code>target/classes</code>
           and dependency jars are mounted directly on <code>/WEB-INF/classes</code> and
           <code>/WEB-INF/lib</code>.</li>
+        <li><b>Startup scan skip</b> — two independent switches to disable Tomcat's startup
+          scanning and speed up boot on large applications:
+          <ul>
+            <li><b>Skip jar scan (per module)</b>: for each module ticked in the Selected list,
+              the plugin writes a <code>&lt;JarScanner&gt;</code>/<code>&lt;JarScanFilter&gt;</code>
+              block in the generated <code>context.xml</code>. For the context it sets
+              <code>reloadable="false"</code> and <code>containerSciFilter</code> (keeps only the
+              websocket SCI), disables
+              <code>scanClassPath</code>, <code>scanBootstrapClassPath</code>,
+              <code>scanAllDirectories</code> and <code>scanAllFiles</code>, and lists the
+              <b>names of the dependency jars of the flagged modules</b> in
+              <code>pluggabilitySkip</code> and <code>tldSkip</code>. What is skipped: Tomcat's
+              scan of the ServletContainerInitializer (SCI)/annotations (<i>pluggability</i>) and of
+              the JSP Tag Library descriptors (<i>TLD/taglib</i>) of exactly those jars. The jars of
+              non-flagged modules are still scanned and the jars remain mounted and usable.</li>
+            <li><b>Skip annotation scan (global)</b>: on run the plugin edits the
+              <code>WEB-INF/web.xml</code> of the web content, adding
+              <code>metadata-complete="true"</code> to the <code>&lt;web-app&gt;</code> element and an
+              empty <code>&lt;absolute-ordering/&gt;</code>. What is skipped: Servlet 3.0 annotation
+              scanning (<code>@WebServlet</code>/<code>@WebFilter</code>/...) and the discovery and
+              processing of web-fragments and ServletContainerInitializer registered in the
+              application jars. Existing attributes/elements are never removed; changes are applied
+              idempotently.</li>
+          </ul>
+        </li>
         <li><b>Simple configuration</b> — choose CATALINA_HOME, CATALINA_BASE, web content
           (docBase), context path and HTTP/shutdown ports from a single dialog.</li>
         <li><b>Optional HotSwap mode (Java 8 + DCEVM + hotswap-agent)</b> — enable unlimited
@@ -52,6 +77,7 @@
   <change-notes>
     <![CDATA[
       <ul>
+        <li><b>2.3.0</b> Skip scan: per-module jar-scan skip now also sets reloadable="false", containerSciFilter and disables classpath/bootstrap/all-directory/all-file scanning in context.xml; the global annotation-scan skip also writes &lt;absolute-ordering/&gt; into WEB-INF/web.xml.</li>
         <li><b>2.2.1</b> Replace deprecated LibraryOrSdkOrderEntry.getFiles() with getRootFiles().</li>
         <li><b>2.2.0</b> HotSwap for Java 8 only: a JDK with DCEVM already installed is assumed. Agent configured per the hotswapagent.org guide (-XXaltjvm=dcevm -javaagent:hotswap-agent.jar). Removed the Java version selection and the automatic JDK/DCEVM download.</li>
         <li><b>2.1.0</b> Add optional HotSwap mode (DCEVM + hotswap-agent).</li>

@@ -13,12 +13,22 @@ public final class ContextXmlBuilder {
                              Set<String> skippedJarNames) {
     StringBuilder sb = new StringBuilder();
     sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    sb.append("<Context docBase=\"").append(escapeXml(webContent)).append("\">\n");
-    if (skippedJarNames != null && !skippedJarNames.isEmpty()) {
-      String skip = escapeXml(String.join(",", skippedJarNames));
-      sb.append("  <JarScanner scanManifest=\"false\">\n");
-      sb.append("    <JarScanFilter pluggabilitySkip=\"").append(skip)
-          .append("\" tldSkip=\"").append(skip).append("\"/>\n");
+    boolean skip = skippedJarNames != null && !skippedJarNames.isEmpty();
+    sb.append("<Context docBase=\"").append(escapeXml(webContent)).append("\"");
+    if (skip) {
+      sb.append(" reloadable=\"false\"");
+      sb.append(" containerSciFilter=\"org\\.apache\\.tomcat\\.websocket\\.server\\.WsSci\"");
+    }
+    sb.append(">\n");
+    if (skip) {
+      String skipNames = escapeXml(String.join(",", skippedJarNames));
+      sb.append("  <JarScanner")
+          .append(" scanClassPath=\"false\"")
+          .append(" scanBootstrapClassPath=\"false\"")
+          .append(" scanAllDirectories=\"false\"")
+          .append(" scanAllFiles=\"false\">\n");
+      sb.append("    <JarScanFilter pluggabilitySkip=\"").append(skipNames)
+          .append("\" tldSkip=\"").append(skipNames).append("\"/>\n");
       sb.append("  </JarScanner>\n");
     }
     sb.append("  <Resources>\n");
