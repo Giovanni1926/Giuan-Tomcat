@@ -3,7 +3,7 @@
 
 <idea-plugin>
     <idea-version
-            since-build="241"
+            since-build="251"
            />
   <!-- Unique id for this plugin. Must stay constant for the life of the plugin. -->
   <id>org.giuantomcat</id>

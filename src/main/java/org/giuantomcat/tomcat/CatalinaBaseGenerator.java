@@ -1,5 +1,6 @@
 package org.giuantomcat.tomcat;
 
+import com.intellij.openapi.progress.ProgressIndicator;
 import org.giuantomcat.tomcat.ClasspathResolver.Classpath;
 import org.giuantomcat.tomcat.ResourceConsolidator.Merged;
 
@@ -25,8 +26,11 @@ public final class CatalinaBaseGenerator {
                               String webContent, String contextPath,
                               String httpPort, String shutdownPort,
                               boolean skipAnnotationScan,
-                              Classpath classpath) throws IOException {
+                              Classpath classpath,
+                              File mergedRoot,
+                              ProgressIndicator indicator) throws IOException {
     File base = new File(catalinaBase);
+    report(indicator, "Preparing Giuan Tomcat environment", "Creating CATALINA_BASE structure");
     mkdirs(new File(base, "conf/Catalina/localhost"));
     mkdirs(new File(base, "logs"));
     mkdirs(new File(base, "work"));
@@ -35,11 +39,14 @@ public final class CatalinaBaseGenerator {
 
     copyDefaultConfFiles(catalinaHome, base);
 
+    report(indicator, "Preparing Giuan Tomcat environment", "Writing server.xml");
     writeFile(new File(new File(base, "conf"), "server.xml"),
         buildServerXml(httpPort, shutdownPort));
 
-    Merged merged = ResourceConsolidator.consolidate(catalinaBase, classpath);
+    report(indicator, "Consolidating application classpath", null);
+    Merged merged = ResourceConsolidator.consolidate(mergedRoot, classpath, indicator);
 
+    report(indicator, "Preparing Giuan Tomcat environment", "Writing context.xml");
     File contextFile = new File(new File(new File(base, "conf"), "Catalina/localhost"),
         contextFileName(contextPath));
     writeFile(contextFile,
@@ -47,6 +54,18 @@ public final class CatalinaBaseGenerator {
             classpath.skippedJarNames));
 
     applySkipAnnotationScan(webContent, skipAnnotationScan);
+    report(indicator, "Giuan Tomcat environment ready", null);
+  }
+
+  private static void report(ProgressIndicator indicator, String text, String detail) {
+    if (indicator == null) {
+      return;
+    }
+    indicator.setText(text);
+    if (detail != null) {
+      indicator.setText2(detail);
+    }
+    indicator.checkCanceled();
   }
 
   private static final String SKIP_MARKER = "<!--[GiuanTomcat skip:annotation-scan]-->";

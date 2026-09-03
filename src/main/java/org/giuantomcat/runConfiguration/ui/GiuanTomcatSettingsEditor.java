@@ -7,6 +7,7 @@ import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.options.SettingsEditor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ModuleRootManager;
+import com.intellij.openapi.ui.Splitter;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.ui.CollectionListModel;
 import com.intellij.ui.ColoredTreeCellRenderer;
@@ -16,6 +17,7 @@ import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.ui.FormBuilder;
+import com.intellij.util.ui.JBUI;
 import org.giuantomcat.runConfiguration.runner.GiuanTomcatRunConfiguration;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,10 +40,8 @@ import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import java.awt.BorderLayout;
 import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.datatransfer.DataFlavor;
@@ -234,13 +234,13 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
             + "<b>/WEB-INF/classes</b> and dependency jars on <b>/WEB-INF/lib</b>.</html>");
     description.add(desc, BorderLayout.WEST);
 
-    JPanel lists = new JPanel(new GridLayout(1, 2, 8, 0));
-    lists.add(createSelectedPanel());
-    lists.add(createAvailablePanel());
+    Splitter splitter = new Splitter(true, 0.5f);
+    splitter.setFirstComponent(createSelectedPanel());
+    splitter.setSecondComponent(createAvailablePanel());
 
     JPanel wrapper = new JPanel(new BorderLayout(0, 6));
     wrapper.add(description, BorderLayout.NORTH);
-    wrapper.add(lists, BorderLayout.CENTER);
+    wrapper.add(splitter, BorderLayout.CENTER);
     return wrapper;
   }
 
@@ -260,7 +260,7 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
     north.add(skipHeader, BorderLayout.SOUTH);
     panel.add(north, BorderLayout.NORTH);
     JBScrollPane scroll = new JBScrollPane(chosenList);
-    scroll.setPreferredSize(new Dimension(280, 160));
+    scroll.setPreferredSize(JBUI.size(280, 160));
     panel.add(scroll, BorderLayout.CENTER);
     return panel;
   }
@@ -278,7 +278,7 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
     north.add(hint, BorderLayout.CENTER);
     panel.add(north, BorderLayout.NORTH);
     JBScrollPane scroll = new JBScrollPane(availableTree);
-    scroll.setPreferredSize(new Dimension(280, 160));
+    scroll.setPreferredSize(JBUI.size(280, 160));
     panel.add(scroll, BorderLayout.CENTER);
     return panel;
   }
@@ -348,7 +348,7 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
   @NotNull
   @Override
   protected JComponent createEditor() {
-    return myPanel;
+    return new JBScrollPane(myPanel);
   }
 
   private void addToChosen(Module module) {

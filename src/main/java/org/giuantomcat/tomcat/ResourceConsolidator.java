@@ -1,23 +1,30 @@
 package org.giuantomcat.tomcat;
 
+import com.intellij.openapi.progress.ProgressIndicator;
 import org.giuantomcat.tomcat.ClasspathResolver.Classpath;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public final class ResourceConsolidator {
 
-  private static final String MERGED_DIR = "giuan-merged";
   private static final String LOG_PREFIX = "[GiuanTomcat] consolidate: ";
+  private static final String MANIFEST_HEADER = "giuan-tomcat-merged-manifest";
+  private static final String MANIFEST_VERSION = "1";
 
   private ResourceConsolidator() {
   }
@@ -32,47 +39,187 @@ public final class ResourceConsolidator {
     }
   }
 
-  public static Merged consolidate(String catalinaBase, Classpath classpath) throws IOException {
-    File mergedRoot = new File(catalinaBase, MERGED_DIR);
-    deleteRecursivelySafe(mergedRoot);
+  private static final class Manifest {
+    final List<String> classesDirs;
+    final Map<String, JarInfo> jars;
+
+    Manifest(List<String> classesDirs, Map<String, JarInfo> jars) {
+      this.classesDirs = classesDirs;
+      this.jars = jars;
+    }
+  }
+
+  private static final class JarInfo {
+    final long size;
+    final long mtime;
+
+    JarInfo(long size, long mtime) {
+      this.size = size;
+      this.mtime = mtime;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (!(o instanceof JarInfo other)) {
+        return false;
+      }
+      return size == other.size && mtime == other.mtime;
+    }
+
+    @Override
+    public int hashCode() {
+      return 31 * Long.hashCode(size) + Long.hashCode(mtime);
+    }
+  }
+
+  public static Merged consolidate(File mergedRoot, Classpath classpath,
+                                   ProgressIndicator indicator) throws IOException {
+    mkdirs(mergedRoot);
+    File manifestFile = new File(mergedRoot.getParentFile(), "manifest");
+    Manifest previous = readManifest(manifestFile);
 
     boolean hasClasses = !classpath.classesDirs.isEmpty();
     boolean hasJars = !classpath.libJars.isEmpty();
 
+    List<String> desiredClasses = new ArrayList<>(classpath.classesDirs);
+    Collections.sort(desiredClasses);
+    Map<String, JarInfo> desiredJars = collectJarInfos(classpath.libJars);
+    Map<String, JarInfo> previousJars = previous == null ? Map.of() : previous.jars;
+
     File classesDir = new File(mergedRoot, "WEB-INF/classes");
     File libDir = new File(mergedRoot, "WEB-INF/lib");
 
+    boolean classesUnchanged = hasClasses && previous != null
+        && previous.classesDirs.equals(desiredClasses) && classesDir.isDirectory();
+    int classesWork = (!classesUnchanged && hasClasses) ? classpath.classesDirs.size() : 0;
+    int jarsWork = hasJars ? jarsToProcess(previousJars, desiredJars) : 0;
+    int total = classesWork + jarsWork;
+    int[] progress = {0};
+
     if (hasClasses) {
-      mkdirs(classesDir);
-      mergeClasses(classpath.classesDirs, classesDir);
+      if (!classesUnchanged) {
+        deleteRecursivelySafe(classesDir);
+        mkdirs(classesDir);
+        mergeClasses(classpath.classesDirs, classesDir, indicator, progress, total);
+      }
+    } else {
+      deleteRecursivelySafe(classesDir);
     }
+
     if (hasJars) {
       mkdirs(libDir);
-      mergeJars(classpath.libJars, libDir);
+      reconcileJars(libDir, previousJars, desiredJars, indicator, progress, total);
+    } else {
+      deleteRecursivelySafe(libDir);
     }
+
+    writeManifest(manifestFile, desiredClasses, desiredJars);
 
     return new Merged(hasClasses ? classesDir.getAbsolutePath() : null,
         hasJars ? libDir.getAbsolutePath() : null);
   }
 
-  private static void mergeClasses(List<String> classesDirs, File targetRoot) {
+  private static void mergeClasses(List<String> classesDirs, File targetRoot,
+                                   ProgressIndicator indicator, int[] progress, int total) {
     Map<String, Integer> counts = new HashMap<>();
     for (String dir : classesDirs) {
+      progress(indicator, "Scanning classes", dir, progress[0], total);
       collectDirCounts(new File(dir), "", counts);
     }
     for (String dir : classesDirs) {
+      progress(indicator, "Linking classes (" + (progress[0] + 1) + "/" + total + ")", dir,
+          progress[0], total);
       linkClasses(new File(dir), targetRoot, "", counts);
+      progress[0]++;
     }
   }
 
-  private static void mergeJars(List<String> jars, File libDir) {
-    for (String jar : jars) {
+  private static void reconcileJars(File libDir, Map<String, JarInfo> previous,
+                                    Map<String, JarInfo> desired,
+                                    ProgressIndicator indicator, int[] progress, int total)
+      throws IOException {
+    for (Map.Entry<String, JarInfo> entry : desired.entrySet()) {
+      String path = entry.getKey();
+      JarInfo prev = previous.get(path);
+      if (prev != null && prev.equals(entry.getValue())) {
+        continue;
+      }
+      File link = new File(libDir, new File(path).getName());
+      progress(indicator,
+          "Linking jar (" + (progress[0] + 1) + "/" + total + "): " + new File(path).getName(),
+          path, progress[0], total);
+      deleteIfExists(link);
       try {
-        createFileLink(new File(libDir, new File(jar).getName()), new File(jar));
+        createFileLink(link, new File(path));
       } catch (IOException e) {
-        System.out.println(LOG_PREFIX + "jar non consolidato " + jar + ": " + e.getMessage());
+        System.out.println(LOG_PREFIX + "jar non consolidato " + path + ": " + e.getMessage());
+      }
+      progress[0]++;
+    }
+    for (String path : previous.keySet()) {
+      if (desired.containsKey(path)) {
+        continue;
+      }
+      File link = new File(libDir, new File(path).getName());
+      progress(indicator,
+          "Removing jar (" + (progress[0] + 1) + "/" + total + "): " + new File(path).getName(),
+          path, progress[0], total);
+      deleteIfExists(link);
+      progress[0]++;
+    }
+  }
+
+  private static int jarsToProcess(Map<String, JarInfo> previous, Map<String, JarInfo> desired) {
+    int count = 0;
+    for (Map.Entry<String, JarInfo> entry : desired.entrySet()) {
+      JarInfo prev = previous.get(entry.getKey());
+      if (prev == null || !prev.equals(entry.getValue())) {
+        count++;
       }
     }
+    for (String path : previous.keySet()) {
+      if (!desired.containsKey(path)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private static Map<String, JarInfo> collectJarInfos(List<String> jars) {
+    Map<String, JarInfo> map = new HashMap<>();
+    for (String path : jars) {
+      File file = new File(path);
+      long size = -1;
+      long mtime = -1;
+      try {
+        if (file.isFile()) {
+          size = Files.size(file.toPath());
+          mtime = Files.getLastModifiedTime(file.toPath()).toMillis();
+        }
+      } catch (IOException ignored) {
+        // keep -1 so the jar is treated as changed
+      }
+      map.put(path, new JarInfo(size, mtime));
+    }
+    return map;
+  }
+
+  private static void progress(ProgressIndicator indicator, String text, String detail,
+                               int done, int total) {
+    if (indicator == null) {
+      return;
+    }
+    indicator.setText(text);
+    if (detail != null) {
+      indicator.setText2(detail);
+    }
+    if (!indicator.isIndeterminate() && total > 0) {
+      indicator.setFraction((double) done / total);
+    }
+    indicator.checkCanceled();
   }
 
   private static void collectDirCounts(File dir, String rel, Map<String, Integer> counts) {
@@ -125,11 +272,7 @@ public final class ResourceConsolidator {
   private static void createDirectoryLink(File link, File target) throws IOException {
     deleteIfExists(link);
     if (isWindows()) {
-      int exit = runCmd("mklink /J \"" + link.getAbsolutePath() + "\" \""
-          + target.getAbsolutePath() + "\"");
-      if (exit != 0) {
-        throw new IOException("mklink /J failed (" + exit + "): " + link + " -> " + target);
-      }
+      Win32Linker.createJunction(link, target);
     } else {
       Files.createSymbolicLink(link.toPath(), target.toPath());
     }
@@ -138,7 +281,11 @@ public final class ResourceConsolidator {
   private static void createFileLink(File link, File target) throws IOException {
     deleteIfExists(link);
     try {
-      Files.createLink(link.toPath(), target.toPath());
+      if (isWindows()) {
+        Win32Linker.createHardLink(link, target);
+      } else {
+        Files.createLink(link.toPath(), target.toPath());
+      }
     } catch (IOException e) {
       Files.copy(target.toPath(), link.toPath(), StandardCopyOption.REPLACE_EXISTING);
       System.out.println(LOG_PREFIX + "hard link non disponibile, copiato " + link + " <- "
@@ -201,6 +348,69 @@ public final class ResourceConsolidator {
   private static void mkdirs(File dir) {
     if (!dir.exists()) {
       dir.mkdirs();
+    }
+  }
+
+  private static void writeManifest(File manifestFile, List<String> classesDirs,
+                                    Map<String, JarInfo> jars) throws IOException {
+    try (BufferedWriter writer =
+             Files.newBufferedWriter(manifestFile.toPath(), StandardCharsets.UTF_8)) {
+      writer.write(MANIFEST_HEADER + " " + MANIFEST_VERSION);
+      writer.newLine();
+      writer.write("C");
+      writer.newLine();
+      for (String dir : classesDirs) {
+        writer.write(dir);
+        writer.newLine();
+      }
+      writer.write("J");
+      writer.newLine();
+      for (Map.Entry<String, JarInfo> entry : jars.entrySet()) {
+        writer.write(entry.getValue().size + "\t" + entry.getValue().mtime + "\t"
+            + entry.getKey());
+        writer.newLine();
+      }
+    }
+  }
+
+  private static Manifest readManifest(File manifestFile) {
+    if (!manifestFile.isFile()) {
+      return null;
+    }
+    try (BufferedReader reader =
+             Files.newBufferedReader(manifestFile.toPath(), StandardCharsets.UTF_8)) {
+      String header = reader.readLine();
+      if (header == null || !header.startsWith(MANIFEST_HEADER)) {
+        return null;
+      }
+      List<String> classesDirs = new ArrayList<>();
+      Map<String, JarInfo> jars = new HashMap<>();
+      String section = null;
+      String line;
+      while ((line = reader.readLine()) != null) {
+        if ("C".equals(line)) {
+          section = "C";
+        } else if ("J".equals(line)) {
+          section = "J";
+        } else if (!line.isEmpty()) {
+          if ("C".equals(section)) {
+            classesDirs.add(line);
+          } else if ("J".equals(section)) {
+            String[] parts = line.split("\t", 3);
+            if (parts.length == 3) {
+              try {
+                jars.put(parts[2],
+                    new JarInfo(Long.parseLong(parts[0]), Long.parseLong(parts[1])));
+              } catch (NumberFormatException ignored) {
+                // skip malformed entry
+              }
+            }
+          }
+        }
+      }
+      return new Manifest(classesDirs, jars);
+    } catch (IOException e) {
+      return null;
     }
   }
 }

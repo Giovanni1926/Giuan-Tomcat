@@ -13,6 +13,7 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable;
 import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.ProjectRootManager;
+import com.intellij.openapi.progress.ProgressManager;
 import org.giuantomcat.tomcat.CatalinaBaseGenerator;
 import org.giuantomcat.tomcat.ClasspathResolver;
 import org.jetbrains.annotations.NotNull;
@@ -42,12 +43,17 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
             myConfiguration.getModulesSkipJarScan());
 
     try {
+      File mergedRoot = new File(System.getProperty("java.io.tmpdir"),
+          "giuan-tomcat" + File.separator + sanitize(myConfiguration.getName())
+              + File.separator + "giuan-merged");
       CatalinaBaseGenerator.generate(
           catalinaHome, catalinaBase,
           myConfiguration.getWebContent(), myConfiguration.getContextPath(),
           myConfiguration.getHttpPort(), myConfiguration.getShutdownPort(),
           myConfiguration.isSkipAnnotationScan(),
-          classpath);
+          classpath,
+          mergedRoot,
+          ProgressManager.getInstance().getProgressIndicator());
     } catch (IOException e) {
       throw new ExecutionException("Failed to generate catalina base", e);
     }
@@ -131,6 +137,11 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
 
   private static boolean isBlank(String value) {
     return value == null || value.trim().isEmpty();
+  }
+
+  private static String sanitize(String value) {
+    String name = value == null || value.trim().isEmpty() ? "run-config" : value.trim();
+    return name.replaceAll("[<>:\"/\\\\|?*\\x00-\\x1f]", "_");
   }
 
   private static void generateAgentProperties(String classesDir, String catalinaBase,
