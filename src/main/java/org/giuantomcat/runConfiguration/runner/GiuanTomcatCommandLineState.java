@@ -13,14 +13,22 @@ import com.intellij.openapi.projectRoots.ProjectJdkTable;
 import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.ProjectRootManager;
+import com.intellij.openapi.progress.ProgressManager;
 import org.giuantomcat.tomcat.CatalinaBaseGenerator;
 import org.giuantomcat.tomcat.ClasspathResolver;
+import org.giuantomcat.tomcat.GiuanTomcatPaths;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
 
 public class GiuanTomcatCommandLineState extends JavaCommandLineState {
+
+  private static final String BOOTSTRAP_JAR = "bin/bootstrap.jar";
+  private static final String TOMCAT_JULI_JAR = "bin/tomcat-juli.jar";
+  private static final String CATALINA_BOOTSTRAP_MAIN = "org.apache.catalina.startup.Bootstrap";
+  private static final String BOOTSTRAP_START_ARG = "start";
+  private static final String LOG_MANAGER = "org.apache.juli.ClassLoaderLogManager";
 
   private final GiuanTomcatRunConfiguration myConfiguration;
 
@@ -35,41 +43,41 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
   protected JavaParameters createJavaParameters() throws ExecutionException {
     Project project = myConfiguration.getProject();
     String catalinaHome = myConfiguration.getCatalinaHome();
-    String catalinaBase = myConfiguration.getCatalinaBase();
+    File catalinaBase = GiuanTomcatPaths.catalinaBase(project, myConfiguration.getName());
 
     ClasspathResolver.Classpath classpath =
         ClasspathResolver.resolve(project, myConfiguration.getModuleNames(),
-            myConfiguration.getModulesSkipJarScan());
+            myConfiguration.getJarSkipTokens());
 
     try {
       CatalinaBaseGenerator.generate(
-          catalinaHome, catalinaBase,
+          catalinaHome, project, myConfiguration.getName(),
           myConfiguration.getWebContent(), myConfiguration.getContextPath(),
           myConfiguration.getHttpPort(), myConfiguration.getShutdownPort(),
           myConfiguration.isSkipAnnotationScan(),
-          classpath);
+          classpath,
+          ProgressManager.getInstance().getProgressIndicator());
     } catch (IOException e) {
       throw new ExecutionException("Failed to generate catalina base", e);
     }
 
     JavaParameters parameters = new JavaParameters();
-    parameters.setWorkingDirectory(catalinaBase);
-    parameters.getClassPath().add(new File(catalinaHome, "bin/bootstrap.jar").getAbsolutePath());
-    parameters.getClassPath().add(new File(catalinaHome, "bin/tomcat-juli.jar").getAbsolutePath());
+    parameters.setWorkingDirectory(catalinaBase.getAbsolutePath());
+    parameters.getClassPath().add(new File(catalinaHome, BOOTSTRAP_JAR).getAbsolutePath());
+    parameters.getClassPath().add(new File(catalinaHome, TOMCAT_JULI_JAR).getAbsolutePath());
 
     for (String dir : classpath.classesDirs) {
       parameters.getClassPath().add(dir);
     }
 
     parameters.getVMParametersList().addProperty("catalina.home", catalinaHome);
-    parameters.getVMParametersList().addProperty("catalina.base", catalinaBase);
-    parameters.getVMParametersList().addProperty("java.util.logging.manager",
-        "org.apache.juli.ClassLoaderLogManager");
+    parameters.getVMParametersList().addProperty("catalina.base", catalinaBase.getAbsolutePath());
+    parameters.getVMParametersList().addProperty("java.util.logging.manager", LOG_MANAGER);
     parameters.getVMParametersList().addProperty("java.util.logging.config.file",
         new File(catalinaBase, "conf/logging.properties").getAbsolutePath());
 
-    parameters.setMainClass("org.apache.catalina.startup.Bootstrap");
-    parameters.getProgramParametersList().add("start");
+    parameters.setMainClass(CATALINA_BOOTSTRAP_MAIN);
+    parameters.getProgramParametersList().add(BOOTSTRAP_START_ARG);
 
     Sdk jdk = null;
     String dcevmJdkPath = null;
@@ -133,7 +141,7 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
     return value == null || value.trim().isEmpty();
   }
 
-  private static void generateAgentProperties(String classesDir, String catalinaBase,
+  private static void generateAgentProperties(String classesDir, File catalinaBase,
                                               boolean autoHotswap) {
     try {
       File props = new File(classesDir, "hotswap-agent.properties");

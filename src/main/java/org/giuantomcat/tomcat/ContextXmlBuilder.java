@@ -1,7 +1,5 @@
 package org.giuantomcat.tomcat;
 
-import java.io.File;
-import java.util.List;
 import java.util.Set;
 
 public final class ContextXmlBuilder {
@@ -9,11 +7,16 @@ public final class ContextXmlBuilder {
   private ContextXmlBuilder() {
   }
 
-  public static String build(String webContent, List<String> classesDirs, List<String> libJars,
-                             Set<String> skippedJarNames) {
+  public static String build(String webContent, String mergedClassesDir, String mergedLibDir,
+                             Set<String> skippedTldJarNames,
+                             Set<String> skippedPluggabilityJarNames) {
+    Set<String> tldSkip = skippedTldJarNames == null ? Set.of() : skippedTldJarNames;
+    Set<String> pluggabilitySkip =
+        skippedPluggabilityJarNames == null ? Set.of() : skippedPluggabilityJarNames;
+    boolean skip = !tldSkip.isEmpty() || !pluggabilitySkip.isEmpty();
+
     StringBuilder sb = new StringBuilder();
     sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    boolean skip = skippedJarNames != null && !skippedJarNames.isEmpty();
     sb.append("<Context docBase=\"").append(escapeXml(webContent)).append("\"");
     if (skip) {
       sb.append(" reloadable=\"false\"");
@@ -21,29 +24,34 @@ public final class ContextXmlBuilder {
     }
     sb.append(">\n");
     if (skip) {
-      String skipNames = escapeXml(String.join(",", skippedJarNames));
       sb.append("  <JarScanner")
           .append(" scanClassPath=\"false\"")
           .append(" scanBootstrapClassPath=\"false\"")
           .append(" scanAllDirectories=\"false\"")
           .append(" scanAllFiles=\"false\">\n");
-      sb.append("    <JarScanFilter pluggabilitySkip=\"").append(skipNames)
-          .append("\" tldSkip=\"").append(skipNames).append("\"/>\n");
+      sb.append("    <JarScanFilter");
+      if (!pluggabilitySkip.isEmpty()) {
+        sb.append(" pluggabilitySkip=\"")
+            .append(escapeXml(String.join(",", pluggabilitySkip))).append("\"");
+      }
+      if (!tldSkip.isEmpty()) {
+        sb.append(" tldSkip=\"").append(escapeXml(String.join(",", tldSkip))).append("\"");
+      }
+      sb.append("/>\n");
       sb.append("  </JarScanner>\n");
     }
     sb.append("  <Resources>\n");
 
-    for (String dir : classesDirs) {
+    if (mergedClassesDir != null) {
       sb.append("    <PreResources className=\"org.apache.catalina.webresources.DirResourceSet\"\n");
-      sb.append("                   base=\"").append(escapeXml(dir))
+      sb.append("                   base=\"").append(escapeXml(mergedClassesDir))
           .append("\" webAppMount=\"/WEB-INF/classes\"/>\n");
     }
 
-    for (String jar : libJars) {
-      String jarName = new File(jar).getName();
-      sb.append("    <PreResources className=\"org.apache.catalina.webresources.FileResourceSet\"\n");
-      sb.append("                   base=\"").append(escapeXml(jar))
-          .append("\" webAppMount=\"/WEB-INF/lib/").append(escapeXml(jarName)).append("\"/>\n");
+    if (mergedLibDir != null) {
+      sb.append("    <PreResources className=\"org.apache.catalina.webresources.DirResourceSet\"\n");
+      sb.append("                   base=\"").append(escapeXml(mergedLibDir))
+          .append("\" webAppMount=\"/WEB-INF/lib\"/>\n");
     }
 
     sb.append("  </Resources>\n");

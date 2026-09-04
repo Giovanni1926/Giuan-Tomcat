@@ -2,6 +2,7 @@ package org.giuantomcat.runConfiguration.settings;
 
 import com.intellij.execution.configurations.RunConfigurationOptions;
 import com.intellij.openapi.components.StoredProperty;
+import org.giuantomcat.GiuanTomcatConstants;
 
 import java.util.Set;
 
@@ -10,26 +11,23 @@ public class GiuanTomcatRunConfigurationOptions extends RunConfigurationOptions 
   private final StoredProperty<String> myCatalinaHome =
       string("").provideDelegate(this, "catalinaHome");
 
-  private final StoredProperty<String> myCatalinaBase =
-      string("").provideDelegate(this, "catalinaBase");
-
   private final StoredProperty<String> myWebContent =
       string("").provideDelegate(this, "webContent");
 
   private final StoredProperty<String> myContextPath =
-      string("/myapp").provideDelegate(this, "contextPath");
+      string(GiuanTomcatConstants.DEFAULT_CONTEXT_PATH).provideDelegate(this, "contextPath");
 
   private final StoredProperty<String> myHttpPort =
-      string("8080").provideDelegate(this, "httpPort");
+      string(GiuanTomcatConstants.DEFAULT_HTTP_PORT).provideDelegate(this, "httpPort");
 
   private final StoredProperty<String> myShutdownPort =
-      string("8005").provideDelegate(this, "shutdownPort");
+      string(GiuanTomcatConstants.DEFAULT_SHUTDOWN_PORT).provideDelegate(this, "shutdownPort");
 
   private final StoredProperty<Set<String>> myModuleNames =
       stringSet().provideDelegate(this, "moduleNames");
 
-  private final StoredProperty<Set<String>> myModulesSkipJarScan =
-      stringSet().provideDelegate(this, "modulesSkipJarScan");
+  private final StoredProperty<Set<String>> myJarSkipTokens =
+      stringSet().provideDelegate(this, "jarSkipTokens");
 
   private final StoredProperty<Boolean> mySkipAnnotationScan =
       property(false).provideDelegate(this, "skipAnnotationScan");
@@ -49,14 +47,6 @@ public class GiuanTomcatRunConfigurationOptions extends RunConfigurationOptions 
 
   public void setCatalinaHome(String catalinaHome) {
     myCatalinaHome.setValue(this, catalinaHome);
-  }
-
-  public String getCatalinaBase() {
-    return myCatalinaBase.getValue(this);
-  }
-
-  public void setCatalinaBase(String catalinaBase) {
-    myCatalinaBase.setValue(this, catalinaBase);
   }
 
   public String getWebContent() {
@@ -99,12 +89,12 @@ public class GiuanTomcatRunConfigurationOptions extends RunConfigurationOptions 
     myModuleNames.setValue(this, moduleNames);
   }
 
-  public Set<String> getModulesSkipJarScan() {
-    return myModulesSkipJarScan.getValue(this);
+  public Set<String> getJarSkipTokens() {
+    return myJarSkipTokens.getValue(this);
   }
 
-  public void setModulesSkipJarScan(Set<String> modulesSkipJarScan) {
-    myModulesSkipJarScan.setValue(this, modulesSkipJarScan);
+  public void setJarSkipTokens(Set<String> jarSkipTokens) {
+    myJarSkipTokens.setValue(this, jarSkipTokens);
   }
 
   public boolean isSkipAnnotationScan() {

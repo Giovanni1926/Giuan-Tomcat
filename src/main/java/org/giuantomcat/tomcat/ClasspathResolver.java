@@ -3,14 +3,8 @@ package org.giuantomcat.tomcat;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.DependencyScope;
-import com.intellij.openapi.roots.LibraryOrderEntry;
-import com.intellij.openapi.roots.ModuleRootManager;
-import com.intellij.openapi.roots.OrderEntry;
-import com.intellij.openapi.roots.OrderRootType;
-import com.intellij.openapi.vfs.VirtualFile;
+import org.giuantomcat.runConfiguration.settings.SkipTokens;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -21,15 +15,17 @@ public final class ClasspathResolver {
   public static final class Classpath {
     public final List<String> classesDirs = new ArrayList<>();
     public final List<String> libJars = new ArrayList<>();
-    public final Set<String> skippedJarNames = new LinkedHashSet<>();
+    public final Set<String> skippedTldJarNames = new LinkedHashSet<>();
+    public final Set<String> skippedPluggabilityJarNames = new LinkedHashSet<>();
   }
 
   private ClasspathResolver() {
   }
 
   public static Classpath resolve(Project project, Set<String> moduleNames,
-                                  Set<String> skipScanModuleNames) {
+                                  Set<String> jarSkipTokens) {
     Classpath classpath = new Classpath();
+    Set<String> tokens = jarSkipTokens == null ? Set.of() : jarSkipTokens;
     Set<String> classesSet = new LinkedHashSet<>();
     Set<String> jarsSet = new LinkedHashSet<>();
 
@@ -37,43 +33,36 @@ public final class ClasspathResolver {
       if (!moduleNames.contains(module.getName())) {
         continue;
       }
-      boolean skip =
-          skipScanModuleNames != null && skipScanModuleNames.contains(module.getName());
+      ModuleDependencies deps = ModuleDependencies.forModule(module);
+      String moduleName = module.getName();
 
-      for (VirtualFile contentRoot : ModuleRootManager.getInstance(module).getContentRoots()) {
-        File targetClasses = new File(contentRoot.getPath(), "target/classes");
-        if (targetClasses.isDirectory()) {
-          classesSet.add(targetClasses.getAbsolutePath());
-        } else {
-          System.out.println("[GiuanTomcat] target/classes not found for module "
-              + module.getName() + ": " + targetClasses.getAbsolutePath());
+      if (deps.hasTargetClasses()) {
+        for (java.io.File dir : deps.targetClassesDirs) {
+          classesSet.add(dir.getAbsolutePath());
         }
+      } else {
+        System.out.println("[GiuanTomcat] target/classes not found for module "
+            + moduleName);
       }
 
-      for (OrderEntry entry : ModuleRootManager.getInstance(module).getOrderEntries()) {
-        if (entry instanceof LibraryOrderEntry libraryEntry) {
-          DependencyScope scope = libraryEntry.getScope();
-          if (scope == DependencyScope.COMPILE) {
-            for (VirtualFile root : libraryEntry.getRootFiles(OrderRootType.CLASSES)) {
-              String path = root.getPath();
-              if (path.endsWith("!/")) {
-                path = path.substring(0, path.length() - 2);
-              }
-              if (path.toLowerCase().endsWith(".jar")) {
-                jarsSet.add(path);
-                if (skip) {
-                  classpath.skippedJarNames.add(new File(path).getName());
-                }
-              }
-            }
-          }
+      for (java.io.File jar : deps.compileJars) {
+        String path = jar.getAbsolutePath();
+        jarsSet.add(path);
+        String name = jar.getName();
+        if (SkipTokens.isJarSkippedTld(tokens, moduleName, name)) {
+          classpath.skippedTldJarNames.add(name);
+        }
+        if (SkipTokens.isJarSkippedPluggable(tokens, moduleName, name)) {
+          classpath.skippedPluggabilityJarNames.add(name);
         }
       }
     }
 
     System.out.println("[GiuanTomcat] classes dirs: " + classesSet);
     System.out.println("[GiuanTomcat] lib jars: " + jarsSet);
-    System.out.println("[GiuanTomcat] skipped jar scan: " + classpath.skippedJarNames);
+    System.out.println("[GiuanTomcat] skipped tld jar scan: " + classpath.skippedTldJarNames);
+    System.out.println(
+        "[GiuanTomcat] skipped pluggability jar scan: " + classpath.skippedPluggabilityJarNames);
 
     classpath.classesDirs.addAll(classesSet);
     classpath.libJars.addAll(jarsSet);
