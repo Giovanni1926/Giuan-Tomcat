@@ -12,6 +12,8 @@ repositories {
 }
 
 dependencies {
+    compileOnly("net.java.dev.jna:jna-platform:5.17.0")
+
     intellijPlatform {
         intellijIdea("2025.2.6")
         bundledPlugin("com.intellij.java")
@@ -21,7 +23,7 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "241"
+            sinceBuild = "251"
         }
     }
 }

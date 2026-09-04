@@ -41,14 +41,6 @@ public class GiuanTomcatRunConfiguration
     getOptions().setCatalinaHome(catalinaHome);
   }
 
-  public String getCatalinaBase() {
-    return getOptions().getCatalinaBase();
-  }
-
-  public void setCatalinaBase(String catalinaBase) {
-    getOptions().setCatalinaBase(catalinaBase);
-  }
-
   public String getWebContent() {
     return getOptions().getWebContent();
   }
@@ -92,13 +84,13 @@ public class GiuanTomcatRunConfiguration
   }
 
   @NotNull
-  public Set<String> getModulesSkipJarScan() {
-    Set<String> names = getOptions().getModulesSkipJarScan();
-    return names != null ? names : Collections.emptySet();
+  public Set<String> getJarSkipTokens() {
+    Set<String> tokens = getOptions().getJarSkipTokens();
+    return tokens != null ? tokens : Collections.emptySet();
   }
 
-  public void setModulesSkipJarScan(Set<String> modulesSkipJarScan) {
-    getOptions().setModulesSkipJarScan(modulesSkipJarScan);
+  public void setJarSkipTokens(Set<String> jarSkipTokens) {
+    getOptions().setJarSkipTokens(jarSkipTokens);
   }
 
   public boolean isSkipAnnotationScan() {
