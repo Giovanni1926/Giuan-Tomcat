@@ -19,13 +19,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Raggruppa i moduli per cartella in un albero riusabile (Available e Selected). */
+/** Groups modules by folder into a reusable tree (Available and Selected). */
 public final class ModuleTreeBuilder {
 
   private ModuleTreeBuilder() {
   }
 
-  /** Crea un albero di moduli già configurato (folder grouping, selezione singola). */
+  /** Creates a pre-configured module tree (folder grouping, single selection). */
   public static Tree createTree() {
     DefaultTreeModel model = new DefaultTreeModel(new DefaultMutableTreeNode());
     Tree tree = new Tree(model);
@@ -154,7 +154,7 @@ public final class ModuleTreeBuilder {
     }
   }
 
-  /** Renderer per nodi modulo e cartella. */
+  /** Renderer for module and folder nodes. */
   public static final class FolderModuleCellRenderer extends ColoredTreeCellRenderer {
     @Override
     public void customizeCellRenderer(@NotNull javax.swing.JTree tree, Object value,
@@ -174,7 +174,7 @@ public final class ModuleTreeBuilder {
     }
   }
 
-  /** Estrae i moduli selezionati dall'albero (nodi foglia con userObject Module). */
+  /** Extracts the modules selected in the tree (leaf nodes with a Module userObject). */
   public static List<Module> selectedModules(Tree tree) {
     List<Module> result = new ArrayList<>();
     TreePath[] paths = tree.getSelectionPaths();

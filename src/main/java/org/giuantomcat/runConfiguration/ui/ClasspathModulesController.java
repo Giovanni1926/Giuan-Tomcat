@@ -12,7 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Stato e logica della selezione moduli + skip granulare (separato dalla costruzione della view). */
+/** State and logic of the module selection + granular skip (separated from the view construction). */
 public final class ClasspathModulesController {
 
   private final Project myProject;
@@ -37,7 +37,7 @@ public final class ClasspathModulesController {
     mySkipTokens.clear();
     if (skipTokens != null) {
       for (String token : skipTokens) {
-        // scarta token malformati o residui di formati rimossi (es. annotation per-modulo)
+        // discard malformed tokens or leftovers of removed formats (e.g. per-module annotation)
         if (SkipTokens.Parsed.of(token) != null) {
           mySkipTokens.add(token);
         }
@@ -117,7 +117,7 @@ public final class ClasspathModulesController {
     myFocusModuleName = moduleName;
   }
 
-  /** Modulo correntemente selezionato per il pannello skip, o il primo selezionato. */
+  /** Module currently selected for the skip panel, or the first selected one. */
   public Module getFocusModule() {
     if (myFocusModuleName != null) {
       for (Module module : mySelected) {
@@ -142,7 +142,7 @@ public final class ClasspathModulesController {
     return findModule(name);
   }
 
-  // ---- flag granulari ----
+  // ---- granular flags ----
 
   public boolean isTldSkipped(Module module, String jarName) {
     return mySkipTokens.contains(SkipTokens.jarToken(module.getName(), jarName, SkipTokens.FLAG_TLD));

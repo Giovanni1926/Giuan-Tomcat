@@ -7,7 +7,7 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.JComponent;
 import java.util.Set;
 
-/** Popup modale per selezionare i moduli e configurare gli skip granulari a 3 colonne. */
+/** Modal popup to select the modules and configure the granular 3-column skips. */
 public class ModuleSelectorDialog extends DialogWrapper {
 
   private final ClasspathModulesPanel myPanel;

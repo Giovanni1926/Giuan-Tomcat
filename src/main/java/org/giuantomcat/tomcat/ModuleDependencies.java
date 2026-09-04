@@ -16,8 +16,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Dipendenze di un modulo riusabili sia in fase di run (montaggio classpath) sia nell'editor
- * (pannello "Manage skips"): jar di libreria in scope compile e cartelle {@code target/classes}.
+ * Dependencies of a module, reusable both at run time (classpath assembly) and in the editor
+ * ("Manage skips" panel): library jars in compile scope and {@code target/classes} folders.
  */
 public final class ModuleDependencies {
 

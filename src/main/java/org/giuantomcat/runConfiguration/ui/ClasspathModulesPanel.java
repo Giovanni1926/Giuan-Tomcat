@@ -45,7 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-/** Pannello classpath a 3 colonne: Available / Selected / Manage skips. */
+/** 3-column classpath panel: Available / Selected / Manage skips. */
 public final class ClasspathModulesPanel {
 
   public static final class State {

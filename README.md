@@ -1,111 +1,89 @@
 # Giuan Tomcat
 
-Plugin IntelliJ che genera un'istanza `CATALINA_BASE` (struttura + `server.xml` + `context.xml`) e
-avvia Tomcat 9. Il `context.xml` viene generato dentro il catalina base, con il docBase scelto
-dall'utente, le classi compilate (`target/classes`) dei moduli scelti montate su `/WEB-INF/classes`
-e le librerie jar di dipendenza (escluso il JDK) su `/WEB-INF/lib`.
+IntelliJ plugin that generates a `CATALINA_BASE` instance (structure + `server.xml` + `context.xml`)
+and starts Tomcat 9. The `context.xml` is generated inside the catalina base, with the docBase chosen
+by the user, the compiled classes (`target/classes`) of the chosen modules mounted on `/WEB-INF/classes`
+and the dependency jars (excluding the JDK) on `/WEB-INF/lib`.
 
-Il catalina base è **auto-generato in una cartella temporanea di sistema**: ogni run configuration
-usa una cartella dedicata `<tmp>/giuan-tomcat/<hash>/` dove `<hash>` deriva dal percorso del
-progetto e dal nome della configurazione (SHA-256 troncato), così config omonime di progetti
-diversi non si sovrappongono. All'interno: `catalina-base/` (istanza generata) e `giuan-merged/`
-(risorse consolidate).
+The catalina base is **auto-generated in a system temporary folder**: each run configuration
+uses a dedicated folder `<tmp>/giuan-tomcat/<hash>/` where `<hash>` derives from the project
+path and the configuration name (truncated SHA-256), so homonymous configurations from different
+projects never overlap. Inside it: `catalina-base/` (generated instance) and `giuan-merged/`
+(consolidated resources).
 
-## Configurazione
+## Configuration
 
-La run configuration "Giuan Tomcat" espone i seguenti campi:
+The "Giuan Tomcat" run configuration exposes the following fields:
 
-- **CATALINA_HOME** — percorso dell'installazione di Tomcat.
-- **Web content (docBase)** — directory contenente il contenuto web.
-- **Context path** — es. `/myapp`.
-- **HTTP port** — porta del connettore HTTP (default `8080`).
-- **Shutdown port** — porta di shutdown (default `8005`).
-- **Modules** — riga con riepilogo di sola lettura dei moduli selezionati e bottone
-  `Configure...` che apre un **dialog popup** a 3 colonne sulla stessa riga: moduli disponibili
-  (raggruppati per cartella), moduli selezionati (i cui `target/classes` e jar di dipendenza vengono
-  montati rispettivamente su `/WEB-INF/classes` e `/WEB-INF/lib`) e "Manage skips". Selezionando
-  un modulo nella colonna centrale, la terza colonna mostra le sue dipendenze con skip granulari:
-  - **Skip TLD / Skip pluggable (per singolo jar)** — spuntando le caselle di un jar di
-    dipendenza del modulo selezionato, il plugin genera nel `context.xml` un blocco
-    `<JarScanner>/<JarScanFilter>` che esclude **quel jar** dallo scan di startup: TLD/taglib
-    (`tldSkip`) o pluggability/SCI (`pluggabilitySkip`) separatamente. Se almeno un jar è
-    escluso, sul `<Context>` imposta `reloadable="false"` e `containerSciFilter`, e disattiva
-    `scanClassPath`/`scanBootstrapClassPath`/`scanAllDirectories`/`scanAllFiles`. I jar non
-    flaggati restano scansionati e tutti i jar restano montati e utilizzabili.
-- **Skip annotation scan (globale)** — spunta esterna, comune a tutti i moduli: all'avvio il
-  plugin modifica il `WEB-INF/web.xml` del web content aggiungendo `metadata-complete="true"` al
-  `<web-app>` e un `<absolute-ordering/>` vuoto (impedisce scan delle annotazioni e scoperta di
-  web-fragment/SCI sull'intera applicazione). Le aggiunte sono marcate con un commento: se poi
-  togli la spunta, in una successiva esecuzione il plugin **rimuove** esattamente ciò che ha
-  aggiunto, lasciando intatti elementi preesistenti. Idempotente.
-- **Enable HotSwap (DCEVM + hotswap-agent)** — spuntando la checkbox il plugin apre un dialog
-  dove selezionare:
-  - **DCEVM JDK** — una JDK 8 con DCEVM già installato come altjvm (prerequisito: segui la
-    guida ufficiale [hotswapagent.org](https://hotswapagent.org/mydoc_quickstart.html) per
-    installare la patch DCEVM sulla JDK 8).
-  - **hotswap-agent.jar** — scaricato a mano dalle
-    [release di HotswapAgent](https://github.com/HotswapProjects/HotswapAgent/releases) e
-    messo in un percorso qualsiasi.
-  Il plugin registra la JDK come globale e la imposta nella configurazione.
+- **CATALINA_HOME** — path of the Tomcat installation.
+- **Web content (docBase)** — directory containing the web content.
+- **Context path** — e.g. `/myapp`.
+- **HTTP port** — HTTP connector port (default `8080`).
+- **Shutdown port** — shutdown port (default `8005`).
+- **Modules** — row with a read-only summary of the selected modules and a
+  `Configure...` button that opens a **3-column popup dialog** on the same row: available
+  modules (grouped by folder), selected modules (whose `target/classes` and dependency jars are
+  mounted on `/WEB-INF/classes` and `/WEB-INF/lib` respectively) and "Manage skips". Selecting
+  a module in the middle column, the third column shows its dependencies with granular skips:
+  - **Skip TLD / Skip pluggable (per single jar)** — ticking the checkboxes of a dependency jar
+    of the selected module makes the plugin generate in the `context.xml` a
+    `<JarScanner>/<JarScanFilter>` block that excludes **that jar** from the startup scan: TLD/taglib
+    (`tldSkip`) or pluggability/SCI (`pluggabilitySkip`) separately. If at least one jar is
+    excluded, it sets `reloadable="false"` and `containerSciFilter` on the `<Context>`, and disables
+    `scanClassPath`/`scanBootstrapClassPath`/`scanAllDirectories`/`scanAllFiles`. Non-flagged jars
+    remain scanned and all jars stay mounted and usable.
+- **Skip annotation scan (global)** — external checkbox, common to all modules: at startup the
+  plugin modifies the `WEB-INF/web.xml` of the web content by adding `metadata-complete="true"` to
+  the `<web-app>` and an empty `<absolute-ordering/>` (prevents annotation scan and discovery of
+  web-fragment/SCI across the whole application). The additions are marked with a comment: if you
+  later untick the checkbox, on a subsequent run the plugin **removes** exactly what it added,
+  leaving pre-existing elements intact. Idempotent.
+- **Enable HotSwap (DCEVM + hotswap-agent)** — ticking the checkbox opens a dialog
+  where you select:
+  - **DCEVM JDK** — a JDK 8 with DCEVM already installed as altjvm (prerequisite: follow the
+    official guide [hotswapagent.org](https://hotswapagent.org/mydoc_quickstart.html) to
+    install the DCEVM patch on the JDK 8).
+  - **hotswap-agent.jar** — downloaded by hand from the
+    [HotswapAgent releases](https://github.com/HotswapProjects/HotswapAgent/releases) and
+    placed in any location.
+  The plugin registers the JDK as global and sets it in the configuration.
 
-> **Setup completo (JDK 8 + patch DCEVM + agent):** vedi [`GUIDA-HOTSWAP.md`](GUIDA-HOTSWAP.md).
+> **Full setup (JDK 8 + DCEVM patch + agent):** see [`GUIDA-HOTSWAP.md`](GUIDA-HOTSWAP.md).
 
-## Esecuzione e debug
+## Execution and debug
 
-All'avvio il plugin:
+At startup the plugin:
 
-1. Risolve `target/classes` e i jar di dipendenza dei moduli selezionati.
-2. Genera la struttura del catalina base (`conf`, `logs`, `work`, `temp`, `webapps`) nella
-   cartella temporanea `<tmp>/giuan-tomcat/<hash>/catalina-base` e crea
-   `conf/server.xml` con le porte scelte e `conf/Catalina/localhost/<context>.xml`.
-3. Lancia `org.apache.catalina.startup.Bootstrap` tramite `JavaCommandLineState`, così il debug
-   usa il debugger nativo di IntelliJ (nessuna build forzata).
+1. Resolves `target/classes` and the dependency jars of the selected modules.
+2. Generates the catalina base structure (`conf`, `logs`, `work`, `temp`, `webapps`) in the
+   temporary folder `<tmp>/giuan-tomcat/<hash>/catalina-base` and creates
+   `conf/server.xml` with the chosen ports and `conf/Catalina/localhost/<context>.xml`.
+3. Launches `org.apache.catalina.startup.Bootstrap` via `JavaCommandLineState`, so the debug
+   uses IntelliJ's native debugger (no forced build).
 
 ### Hot reload
 
-Con la modalità HotSwap attiva il plugin avvia Tomcat con DCEVM obbligatorio
-(`-XXaltjvm=dcevm`, sempre, anche in Debug) e l'agent:
+With HotSwap mode active the plugin starts Tomcat with mandatory DCEVM
+(`-XXaltjvm=dcevm`, always, even in Debug) and the agent:
 
 ```
 -XXaltjvm=dcevm -javaagent:<path>/hotswap-agent.jar=autoHotswap=true
 ```
 
-- **Run**: l'argomento `autoHotswap=true` abilita il watch a livello globale (ogni
-  classloader, inclusa la webapp); il plugin genera inoltre in `target/classes` un
-  `hotswap-agent.properties` con `autoHotswap=true` e aggiunge
-  `-Dhotswap.extraClasspath=<target/classes>` così l'agente osserva le classi compilate.
-- **Debug**: l'agent è caricato **senza** `autoHotswap` (i watcher dell'agent confliggono
-  con il debugger); il reload delle classi lo fa il debugger di IntelliJ (JDWP + DCEVM
-  attivo). Per il reload automatico dopo la compilazione: **Settings → Debugger → HotSwap →
+- **Run**: the `autoHotswap=true` argument enables the watch at a global level (every
+  classloader, including the webapp); the plugin additionally generates in `target/classes` a
+  `hotswap-agent.properties` with `autoHotswap=true` and adds
+  `-Dhotswap.extraClasspath=<target/classes>` so the agent watches the compiled classes.
+- **Debug**: the agent is loaded **without** `autoHotswap` (the agent watchers conflict
+  with the debugger); class reload is done by the IntelliJ debugger (JDWP + DCEVM
+  active). For automatic reload after compilation: **Settings → Debugger → HotSwap →
   "Reload classes after compilation" = Always**.
 
-Dopo una modifica alle classi: **Build (Ctrl+F9)** e la ridefinizione viene applicata senza
-riavviare. Le modifiche strutturali (aggiunta di campi/metodi) richiedono DCEVM attivo.
+After modifying classes: **Build (Ctrl+F9)** and the redefinition is applied without
+restarting. Structural changes (adding fields/methods) require DCEVM active.
 
-### Debug e DCEVM
+### Debug and DCEVM
 
-Con HotSwap attivo il plugin usa **sempre** `-XXaltjvm=dcevm`, anche in Debug (l'altjvm
-è obbligatorio per i cambi strutturali).
+With HotSwap active the plugin **always** uses `-XXaltjvm=dcevm`, even in Debug (the altjvm
+is mandatory for structural changes).
 
-## Struttura package
-
-```
-org.giuantomcat
-├── runConfiguration          # GiuanTomcatConfigurationType, GiuanTomcatConfigurationFactory
-├── runConfiguration.settings # GiuanTomcatRunConfigurationOptions, SkipTokens
-├── runConfiguration.ui       # GiuanTomcatSettingsEditor, ClasspathModulesPanel/Controller,
-│                             # ModuleTreeBuilder, HotSwapConfigDialog
-├── runConfiguration.runner   # GiuanTomcatRunConfiguration, GiuanTomcatCommandLineState
-└── tomcat                    # CatalinaBaseGenerator, ContextXmlBuilder, ClasspathResolver,
-                              # ModuleDependencies, ResourceConsolidator, GiuanTomcatPaths
-```
-
-## Icona
-
-L'icona della run configuration è `src/main/resources/icons/tomcat.svg` (caricata via
-`IconLoader`), mentre `src/main/resources/META-INF/pluginIcon.svg` è l'icona del plugin.
-
-## Progetto di esempio
-
-Vedi [`examples/hello-webapp`](examples/hello-webapp) per una webapp Maven da usare per testare
-la configurazione (servlet + dipendenza Gson).

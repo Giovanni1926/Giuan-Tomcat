@@ -4,10 +4,10 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Modello persistito del skip granulare per-jar. Ogni voce è un token nella forma
- * {@code <module>|<entry>|tld} oppure {@code <module>|<entry>|pluggable}, dove l'<em>entry</em> è il
- * nome file di un jar di dipendenza. Lo skip dell'annotation scan (classes) NON è per-modulo ma
- * globale: è la spunta esterna {@code skipAnnotationScan} delle opzioni.
+ * Persisted model of the per-jar granular skip. Each entry is a token shaped
+ * {@code <module>|<entry>|tld} or {@code <module>|<entry>|pluggable}, where the <em>entry</em> is the
+ * file name of a dependency jar. The annotation scan (classes) skip is NOT per-module but
+ * global: it is the external {@code skipAnnotationScan} checkbox of the options.
  */
 public final class SkipTokens {
 
@@ -35,7 +35,7 @@ public final class SkipTokens {
     return tokens.contains(token(module, jarName, FLAG_PLUGGABLE));
   }
 
-  /** Token decodificato (voci malformate o sconosciute → {@code null}). */
+  /** Decoded token (malformed or unknown entries → {@code null}). */
   public record Parsed(String module, String entry, String flag) {
 
     public static Parsed of(String token) {
