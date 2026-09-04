@@ -1,19 +1,18 @@
 package org.giuantomcat.tomcat;
 
 import com.intellij.openapi.progress.ProgressIndicator;
+import org.giuantomcat.GiuanTomcatConstants;
 import org.giuantomcat.tomcat.ClasspathResolver.Classpath;
+import org.giuantomcat.tomcat.link.FileLinker;
+import org.giuantomcat.tomcat.link.FileLinkerFactory;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -22,9 +21,10 @@ import java.util.Map;
 
 public final class ResourceConsolidator {
 
+  private static final FileLinker LINKER = FileLinkerFactory.get();
   private static final String LOG_PREFIX = "[GiuanTomcat] consolidate: ";
-  private static final String MANIFEST_HEADER = "giuan-tomcat-merged-manifest";
-  private static final String MANIFEST_VERSION = "1";
+  private static final String SECTION_CLASSES = "C";
+  private static final String SECTION_JARS = "J";
 
   private ResourceConsolidator() {
   }
@@ -78,7 +78,7 @@ public final class ResourceConsolidator {
   public static Merged consolidate(File mergedRoot, Classpath classpath,
                                    ProgressIndicator indicator) throws IOException {
     mkdirs(mergedRoot);
-    File manifestFile = new File(mergedRoot.getParentFile(), "manifest");
+    File manifestFile = new File(mergedRoot.getParentFile(), GiuanTomcatConstants.MERGED_MANIFEST_NAME);
     Manifest previous = readManifest(manifestFile);
 
     boolean hasClasses = !classpath.classesDirs.isEmpty();
@@ -228,7 +228,7 @@ public final class ResourceConsolidator {
       return;
     }
     for (File child : children) {
-      if (isLink(child)) {
+      if (LINKER.isLink(child.toPath())) {
         continue;
       }
       if (child.isDirectory()) {
@@ -246,7 +246,7 @@ public final class ResourceConsolidator {
       return;
     }
     for (File child : children) {
-      if (isLink(child)) {
+      if (LINKER.isLink(child.toPath())) {
         continue;
       }
       String childRel = rel.isEmpty() ? child.getName() : rel + "/" + child.getName();
@@ -271,21 +271,13 @@ public final class ResourceConsolidator {
 
   private static void createDirectoryLink(File link, File target) throws IOException {
     deleteIfExists(link);
-    if (isWindows()) {
-      Win32Linker.createJunction(link, target);
-    } else {
-      Files.createSymbolicLink(link.toPath(), target.toPath());
-    }
+    LINKER.createDirectoryLink(link.toPath(), target.toPath());
   }
 
   private static void createFileLink(File link, File target) throws IOException {
     deleteIfExists(link);
     try {
-      if (isWindows()) {
-        Win32Linker.createHardLink(link, target);
-      } else {
-        Files.createLink(link.toPath(), target.toPath());
-      }
+      LINKER.createFileLink(link.toPath(), target.toPath());
     } catch (IOException e) {
       Files.copy(target.toPath(), link.toPath(), StandardCopyOption.REPLACE_EXISTING);
       System.out.println(LOG_PREFIX + "hard link non disponibile, copiato " + link + " <- "
@@ -294,55 +286,11 @@ public final class ResourceConsolidator {
   }
 
   private static void deleteIfExists(File file) throws IOException {
-    if (file.exists()) {
-      Files.delete(file.toPath());
-    }
+    LINKER.deleteLink(file.toPath());
   }
 
   private static void deleteRecursivelySafe(File root) throws IOException {
-    if (!root.exists()) {
-      return;
-    }
-    if (isWindows()) {
-      runCmd("rmdir /s /q \"" + root.getAbsolutePath() + "\"");
-    } else {
-      Files.walkFileTree(root.toPath(), new SimpleFileVisitor<>() {
-        @Override
-        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-            throws IOException {
-          Files.delete(file);
-          return FileVisitResult.CONTINUE;
-        }
-
-        @Override
-        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-          Files.delete(dir);
-          return FileVisitResult.CONTINUE;
-        }
-      });
-    }
-  }
-
-  private static int runCmd(String command) throws IOException {
-    Process process = new ProcessBuilder("cmd", "/c", command).redirectErrorStream(true).start();
-    try {
-      return process.waitFor();
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      return -1;
-    }
-  }
-
-  private static boolean isLink(File file) {
-    try {
-      return Files.isSymbolicLink(file.toPath());
-    } catch (Exception e) {
-      return false;
-    }
-  }
-
-  private static boolean isWindows() {
-    return System.getProperty("os.name").toLowerCase().contains("win");
+    LINKER.deleteRecursively(root.toPath());
   }
 
   private static void mkdirs(File dir) {
@@ -355,15 +303,15 @@ public final class ResourceConsolidator {
                                     Map<String, JarInfo> jars) throws IOException {
     try (BufferedWriter writer =
              Files.newBufferedWriter(manifestFile.toPath(), StandardCharsets.UTF_8)) {
-      writer.write(MANIFEST_HEADER + " " + MANIFEST_VERSION);
+      writer.write(GiuanTomcatConstants.MANIFEST_HEADER + " " + GiuanTomcatConstants.MANIFEST_VERSION);
       writer.newLine();
-      writer.write("C");
+      writer.write(SECTION_CLASSES);
       writer.newLine();
       for (String dir : classesDirs) {
         writer.write(dir);
         writer.newLine();
       }
-      writer.write("J");
+      writer.write(SECTION_JARS);
       writer.newLine();
       for (Map.Entry<String, JarInfo> entry : jars.entrySet()) {
         writer.write(entry.getValue().size + "\t" + entry.getValue().mtime + "\t"
@@ -380,7 +328,7 @@ public final class ResourceConsolidator {
     try (BufferedReader reader =
              Files.newBufferedReader(manifestFile.toPath(), StandardCharsets.UTF_8)) {
       String header = reader.readLine();
-      if (header == null || !header.startsWith(MANIFEST_HEADER)) {
+      if (header == null || !header.startsWith(GiuanTomcatConstants.MANIFEST_HEADER)) {
         return null;
       }
       List<String> classesDirs = new ArrayList<>();
@@ -388,14 +336,14 @@ public final class ResourceConsolidator {
       String section = null;
       String line;
       while ((line = reader.readLine()) != null) {
-        if ("C".equals(line)) {
-          section = "C";
-        } else if ("J".equals(line)) {
-          section = "J";
+        if (SECTION_CLASSES.equals(line)) {
+          section = SECTION_CLASSES;
+        } else if (SECTION_JARS.equals(line)) {
+          section = SECTION_JARS;
         } else if (!line.isEmpty()) {
-          if ("C".equals(section)) {
+          if (SECTION_CLASSES.equals(section)) {
             classesDirs.add(line);
-          } else if ("J".equals(section)) {
+          } else if (SECTION_JARS.equals(section)) {
             String[] parts = line.split("\t", 3);
             if (parts.length == 3) {
               try {

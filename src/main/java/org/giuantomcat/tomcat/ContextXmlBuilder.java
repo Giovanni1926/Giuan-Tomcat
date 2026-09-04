@@ -8,10 +8,15 @@ public final class ContextXmlBuilder {
   }
 
   public static String build(String webContent, String mergedClassesDir, String mergedLibDir,
-                             Set<String> skippedJarNames) {
+                             Set<String> skippedTldJarNames,
+                             Set<String> skippedPluggabilityJarNames) {
+    Set<String> tldSkip = skippedTldJarNames == null ? Set.of() : skippedTldJarNames;
+    Set<String> pluggabilitySkip =
+        skippedPluggabilityJarNames == null ? Set.of() : skippedPluggabilityJarNames;
+    boolean skip = !tldSkip.isEmpty() || !pluggabilitySkip.isEmpty();
+
     StringBuilder sb = new StringBuilder();
     sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    boolean skip = skippedJarNames != null && !skippedJarNames.isEmpty();
     sb.append("<Context docBase=\"").append(escapeXml(webContent)).append("\"");
     if (skip) {
       sb.append(" reloadable=\"false\"");
@@ -19,14 +24,20 @@ public final class ContextXmlBuilder {
     }
     sb.append(">\n");
     if (skip) {
-      String skipNames = escapeXml(String.join(",", skippedJarNames));
       sb.append("  <JarScanner")
           .append(" scanClassPath=\"false\"")
           .append(" scanBootstrapClassPath=\"false\"")
           .append(" scanAllDirectories=\"false\"")
           .append(" scanAllFiles=\"false\">\n");
-      sb.append("    <JarScanFilter pluggabilitySkip=\"").append(skipNames)
-          .append("\" tldSkip=\"").append(skipNames).append("\"/>\n");
+      sb.append("    <JarScanFilter");
+      if (!pluggabilitySkip.isEmpty()) {
+        sb.append(" pluggabilitySkip=\"")
+            .append(escapeXml(String.join(",", pluggabilitySkip))).append("\"");
+      }
+      if (!tldSkip.isEmpty()) {
+        sb.append(" tldSkip=\"").append(escapeXml(String.join(",", tldSkip))).append("\"");
+      }
+      sb.append("/>\n");
       sb.append("  </JarScanner>\n");
     }
     sb.append("  <Resources>\n");

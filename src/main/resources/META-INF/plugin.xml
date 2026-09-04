@@ -31,42 +31,45 @@
         <li><b>No build/deploy step</b> — the selected modules' <code>target/classes</code>
           and dependency jars are mounted directly on <code>/WEB-INF/classes</code> and
           <code>/WEB-INF/lib</code>.</li>
-        <li><b>Startup scan skip</b> — two independent switches to disable Tomcat's startup
-          scanning and speed up boot on large applications:
+        <li><b>Startup scan skip (granular)</b> — the classpath panel has three columns
+          (Available / Selected modules / Manage skips) letting you skip Tomcat's startup scan
+          on single items and speed up boot on large applications:
           <ul>
-            <li><b>Skip jar scan (per module)</b>: for each module ticked in the Selected list,
-              the plugin writes a <code>&lt;JarScanner&gt;</code>/<code>&lt;JarScanFilter&gt;</code>
-              block in the generated <code>context.xml</code>. For the context it sets
-              <code>reloadable="false"</code> and <code>containerSciFilter</code> (keeps only the
-              websocket SCI), disables
+            <li><b>Per dependency jar (Skip TLD / Skip pluggable)</b>: for each jar of the module
+              selected in the middle list you can independently exclude it from the TLD/taglib
+              scan (<code>tldSkip</code>) or from the pluggability/SCI scan
+              (<code>pluggabilitySkip</code>) in the generated <code>context.xml</code>. As soon as
+              at least one jar is excluded the plugin sets <code>reloadable="false"</code> and
+              <code>containerSciFilter</code> on the context and disables
               <code>scanClassPath</code>, <code>scanBootstrapClassPath</code>,
-              <code>scanAllDirectories</code> and <code>scanAllFiles</code>, and lists the
-              <b>names of the dependency jars of the flagged modules</b> in
-              <code>pluggabilitySkip</code> and <code>tldSkip</code>. What is skipped: Tomcat's
-              scan of the ServletContainerInitializer (SCI)/annotations (<i>pluggability</i>) and of
-              the JSP Tag Library descriptors (<i>TLD/taglib</i>) of exactly those jars. The jars of
-              non-flagged modules are still scanned and the jars remain mounted and usable.</li>
-            <li><b>Skip annotation scan (global)</b>: on run the plugin edits the
-              <code>WEB-INF/web.xml</code> of the web content, adding
-              <code>metadata-complete="true"</code> to the <code>&lt;web-app&gt;</code> element and an
-              empty <code>&lt;absolute-ordering/&gt;</code>. What is skipped: Servlet 3.0 annotation
-              scanning (<code>@WebServlet</code>/<code>@WebFilter</code>/...) and the discovery and
-              processing of web-fragments and ServletContainerInitializer registered in the
-              application jars. The additions are tracked with a marker comment so that disabling the
-              option on a later run <b>removes exactly what the plugin added</b>; any pre-existing
+              <code>scanAllDirectories</code> and <code>scanAllFiles</code>. The excluded jars
+              remain mounted and usable; the jars of the other modules are still scanned.</li>
+            <li><b>Annotation scan skip (global checkbox, common to all modules)</b>: on run the
+              plugin edits the <code>WEB-INF/web.xml</code> of the web content, adding
+              <code>metadata-complete="true"</code> to the
+              <code>&lt;web-app&gt;</code> element and an empty <code>&lt;absolute-ordering/&gt;</code>.
+              What is skipped: Servlet 3.0 annotation scanning
+              (<code>@WebServlet</code>/<code>@WebFilter</code>/...) and the discovery and processing
+              of web-fragments and ServletContainerInitializer registered in the application jars.
+              The additions are tracked with a marker comment so that removing the flag on a later run
+              <b>removes exactly what the plugin added</b>; any pre-existing
               <code>metadata-complete</code>/<code>&lt;absolute-ordering&gt;</code> are left
               untouched. Changes are applied idempotently.</li>
           </ul>
         </li>
-        <li><b>Simple configuration</b> — choose CATALINA_HOME, CATALINA_BASE, web content
-          (docBase), context path and HTTP/shutdown ports from a single dialog.</li>
+        <li><b>Simple configuration</b> — choose CATALINA_HOME, web content (docBase),
+          context path and HTTP/shutdown ports from a single dialog. The CATALINA_BASE is
+          auto-generated in the system temp folder
+          (<code>&lt;tmp&gt;/giuan-tomcat/&lt;hash&gt;/catalina-base</code>, where the hash
+          derives from the project location and the configuration name).</li>
         <li><b>Optional HotSwap mode (Java 8 + DCEVM + hotswap-agent)</b> — enable unlimited
           runtime class redefinition (add/remove fields and methods without restarting).
           DCEVM is always forced when HotSwap is active, in Run and Debug alike; in Debug the
           IDE debugger performs the reload (JDWP), in Run the agent watches
           <code>target/classes</code> automatically (<code>autoHotswap</code>).</li>
-        <li><b>Generated instance reuse</b> — the same CATALINA_BASE can be shared between
-          run configurations and started again after it is stopped.</li>
+        <li><b>Generated instance reuse</b> — each configuration maps to its own folder under the
+          system temp dir (hash of project + configuration name, no collisions between projects);
+          the instance is kept between runs and can be started again after it is stopped.</li>
       </ul>
       <p>
         HotSwap prerequisites (see the guide in the plugin repository):
