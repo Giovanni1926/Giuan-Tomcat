@@ -202,15 +202,19 @@ public final class ClasspathModulesPanel {
     myTldAllCheck.addActionListener(e -> {
       Module m = myController.getFocusModule();
       if (m != null) {
-        myController.setAllJarsFlag(m, SkipTokens.FLAG_TLD, myTldAllCheck.isSelected());
-        refreshSkipArea();
+        myController.setJarsFlag(m, visibleJarNames(), SkipTokens.FLAG_TLD,
+            myTldAllCheck.isSelected());
+        repopulateSkipRows();
+        updateSelectAllChecks(m);
       }
     });
     myPluggableAllCheck.addActionListener(e -> {
       Module m = myController.getFocusModule();
       if (m != null) {
-        myController.setAllJarsFlag(m, SkipTokens.FLAG_PLUGGABLE, myPluggableAllCheck.isSelected());
-        refreshSkipArea();
+        myController.setJarsFlag(m, visibleJarNames(), SkipTokens.FLAG_PLUGGABLE,
+            myPluggableAllCheck.isSelected());
+        repopulateSkipRows();
+        updateSelectAllChecks(m);
       }
     });
 
@@ -316,6 +320,7 @@ public final class ClasspathModulesPanel {
         } else {
           myController.setPluggableSkipped(m, jar, next);
         }
+        updateSelectAllChecks(m);
       }
     });
   }
@@ -430,14 +435,11 @@ public final class ClasspathModulesPanel {
   private void refreshSkipArea() {
     Module focus = myController.getFocusModule();
     myCurrentJarNames = new ArrayList<>();
-    myTldAllCheck.setEnabled(false);
-    myPluggableAllCheck.setEnabled(false);
-    myTldAllCheck.setSelected(false);
-    myPluggableAllCheck.setSelected(false);
     myNoModuleLabel.setText("Select a module in the middle list.");
 
     if (focus == null) {
       mySkipModuleLabel.setText("No module selected");
+      updateSelectAllChecks(null);
       repopulateSkipRows();
       return;
     }
@@ -449,9 +451,41 @@ public final class ClasspathModulesPanel {
     } else {
       myNoModuleLabel.setText("Dependency jars and per-jar scan skips:");
     }
-    myTldAllCheck.setEnabled(!myCurrentJarNames.isEmpty());
-    myPluggableAllCheck.setEnabled(!myCurrentJarNames.isEmpty());
+    updateSelectAllChecks(focus);
     repopulateSkipRows();
+  }
+
+  /** Jars of the current module matching the search filter (what the table shows). */
+  private List<String> visibleJarNames() {
+    String query = mySearchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+    List<String> visible = new ArrayList<>();
+    for (String jar : myCurrentJarNames) {
+      if (query.isEmpty() || jar.toLowerCase(java.util.Locale.ROOT).contains(query)) {
+        visible.add(jar);
+      }
+    }
+    return visible;
+  }
+
+  /** Reflect whether every visible jar already has the given flag skipped. */
+  private void updateSelectAllChecks(Module focus) {
+    List<String> visible = visibleJarNames();
+    boolean enabled = focus != null && !visible.isEmpty();
+    myTldAllCheck.setEnabled(enabled);
+    myPluggableAllCheck.setEnabled(enabled);
+    if (!enabled) {
+      myTldAllCheck.setSelected(false);
+      myPluggableAllCheck.setSelected(false);
+      return;
+    }
+    boolean allTld = true;
+    boolean allPluggable = true;
+    for (String jar : visible) {
+      allTld &= myController.isTldSkipped(focus, jar);
+      allPluggable &= myController.isPluggableSkipped(focus, jar);
+    }
+    myTldAllCheck.setSelected(allTld);
+    myPluggableAllCheck.setSelected(allPluggable);
   }
 
   private void repopulateSkipRows() {

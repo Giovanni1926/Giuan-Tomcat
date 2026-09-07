@@ -4,7 +4,6 @@ import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
 import org.giuantomcat.runConfiguration.settings.SkipTokens;
-import org.giuantomcat.tomcat.ModuleDependencies;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -170,9 +169,9 @@ public final class ClasspathModulesController {
     }
   }
 
-  public void setAllJarsFlag(Module module, String flag, boolean skip) {
+  public void setJarsFlag(Module module, Collection<String> jarNames, String flag, boolean skip) {
     String moduleName = module.getName();
-    for (String jarName : ModuleDependencies.forModule(module).jarNames()) {
+    for (String jarName : jarNames) {
       setJarFlag(moduleName, jarName, flag, skip);
     }
   }
