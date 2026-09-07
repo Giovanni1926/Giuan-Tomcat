@@ -36,7 +36,7 @@ public final class GiuanTomcatConstants {
   public static final String MANIFEST_HEADER = "giuan-tomcat-merged-manifest";
 
   /** Version of the manifest format written by the plugin. */
-  public static final String MANIFEST_VERSION = "1";
+  public static final String MANIFEST_VERSION = "4";
 
   /** Marker comment injected in {@code WEB-INF/web.xml} to locate plugin-added blocks. */
   public static final String SKIP_MARKER = "<!--[GiuanTomcat skip:annotation-scan]-->";
