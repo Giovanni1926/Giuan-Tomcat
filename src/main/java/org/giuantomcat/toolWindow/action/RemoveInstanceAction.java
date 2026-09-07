@@ -1,0 +1,28 @@
+package org.giuantomcat.toolWindow.action;
+
+import com.intellij.openapi.actionSystem.AnAction;
+import com.intellij.openapi.actionSystem.AnActionEvent;
+import org.giuantomcat.toolWindow.ServerManagerPanel;
+import org.giuantomcat.toolWindow.TomcatToolWindowIcons;
+import org.jetbrains.annotations.NotNull;
+
+/** Toolbar action that removes the currently selected instance. */
+public final class RemoveInstanceAction extends AnAction {
+
+  private final ServerManagerPanel myPanel;
+
+  public RemoveInstanceAction(ServerManagerPanel panel) {
+    super("Remove Instance", "Remove the selected Tomcat instance", TomcatToolWindowIcons.REMOVE);
+    myPanel = panel;
+  }
+
+  @Override
+  public void update(@NotNull AnActionEvent e) {
+    e.getPresentation().setEnabled(myPanel.hasSelection());
+  }
+
+  @Override
+  public void actionPerformed(@NotNull AnActionEvent e) {
+    myPanel.removeInstance();
+  }
+}

@@ -97,6 +97,16 @@
         <li><b>Generated instance reuse</b> — each configuration maps to its own folder under the
           system temp dir (hash of project + configuration name, no collisions between projects);
           the instance is kept between runs and can be started again after it is stopped.</li>
+        <li><b>Server Manager tool window</b> — a right-side tool window (Maven-style toolbar and
+          collapsible instance list) to manage <b>remote</b> Tomcat instances through the
+          <b>Manager text API</b> (<code>/manager/text</code>): instances are added by host and HTTP
+          port with per-instance Manager credentials stored in the IDE PasswordSafe (SSH is
+          optional); for every instance you see the deployed applications with their state
+          (running/stopped) and session count, and you can <b>start</b>, <b>stop</b>, <b>reload</b>
+          and <b>undeploy</b> each application or <b>deploy</b> a new WAR (upload + context path).
+          When SSH is configured for an instance you can also consult the remote <b>logs</b>: the
+          connection (password or private key) tails <code>catalina.out</code> into an IDE console
+          tab.</li>
       </ul>
       <p>
         HotSwap prerequisites: a JDK patched with DCEVM — per the
@@ -114,6 +124,7 @@
   <change-notes>
     <![CDATA[
       <ul>
+        <li><b>3.0.0</b> New <b>Server Manager</b> tool window (right anchor, Maven-style toolbar + instance list): add/edit/remove remote Tomcat instances (host + port, per-instance Manager credentials kept in the IDE PasswordSafe), monitor every deployed application with live state and session count, start/stop/reload/undeploy single applications and deploy new WARs through the Tomcat Manager text API, and tail the remote log over SSH (password or private key) into an IDE console.</li>
         <li><b>2.4.0</b> Class &amp; library consolidation (giuan-merged): merge the selected modules' target/classes and compile dependency jars into a merged WEB-INF/classes and WEB-INF/lib via hard links/junctions/symlinks (deduplicated, incremental via a manifest, copy fallback), then mount them through PreResources in context.xml. Per-jar startup-scan skip now lets you choose skip or non-skip granularly for each dependency.</li>
         <li><b>2.3.0</b> Skip scan: per-module jar-scan skip now also sets reloadable="false", containerSciFilter and disables classpath/bootstrap/all-directory/all-file scanning in context.xml; the global annotation-scan skip also writes &lt;absolute-ordering/&gt; into WEB-INF/web.xml.</li>
         <li><b>2.2.1</b> Replace deprecated LibraryOrSdkOrderEntry.getFiles() with getRootFiles().</li>
@@ -130,6 +141,11 @@
 
   <extensions defaultExtensionNs="com.intellij">
     <configurationType implementation="org.giuantomcat.runConfiguration.GiuanTomcatConfigurationType"/>
+    <applicationService serviceImplementation="org.giuantomcat.toolWindow.settings.TomcatInstancesSettings"/>
+    <toolWindow id="Giuan Tomcat"
+                anchor="right"
+                icon="/icons/tomcat.svg"
+                factoryClass="org.giuantomcat.toolWindow.GiuanTomcatToolWindowFactory"/>
   </extensions>
 
 </idea-plugin>
