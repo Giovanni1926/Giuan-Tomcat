@@ -12,6 +12,7 @@ public final class TomcatToolWindowIcons {
   }
 
   public static final Icon INSTANCE = icon("/icons/tomcat.svg");
+  public static final Icon GROUP = AllIcons.Nodes.Folder;
 
   public static final Icon REFRESH = AllIcons.Actions.Refresh;
   public static final Icon EXPAND_ALL = AllIcons.Actions.Expandall;

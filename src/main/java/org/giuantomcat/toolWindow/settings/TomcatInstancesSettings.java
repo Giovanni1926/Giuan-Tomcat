@@ -5,6 +5,7 @@ import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import org.giuantomcat.GiuanTomcatConstants;
+import org.giuantomcat.toolWindow.model.TomcatGroup;
 import org.giuantomcat.toolWindow.model.TomcatInstance;
 import org.jetbrains.annotations.NotNull;
 
@@ -23,6 +24,7 @@ import java.util.List;
 public final class TomcatInstancesSettings implements PersistentStateComponent<TomcatInstancesSettings.State> {
 
   public static final class State {
+    public List<TomcatGroup> groups = new ArrayList<>();
     public List<TomcatInstance> instances = new ArrayList<>();
   }
 
@@ -41,9 +43,20 @@ public final class TomcatInstancesSettings implements PersistentStateComponent<T
   @Override
   public void loadState(@NotNull State state) {
     myState = state;
+    if (myState.groups == null) {
+      myState.groups = new ArrayList<>();
+    }
     if (myState.instances == null) {
       myState.instances = new ArrayList<>();
     }
+  }
+
+  public List<TomcatGroup> getGroups() {
+    return new ArrayList<>(myState.groups);
+  }
+
+  public void setGroups(List<TomcatGroup> groups) {
+    myState.groups = new ArrayList<>(groups == null ? List.of() : groups);
   }
 
   public List<TomcatInstance> getInstances() {

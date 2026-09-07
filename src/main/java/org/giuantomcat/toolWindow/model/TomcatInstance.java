@@ -20,6 +20,9 @@ public final class TomcatInstance {
   public String managerPath = GiuanTomcatConstants.DEFAULT_MANAGER_PATH;
   public String managerUsername = "";
 
+  /** Id of the {@code TomcatGroup} this instance belongs to; empty means "ungrouped". */
+  public String groupId = "";
+
   public String sshHost = "";
   public int sshPort = GiuanTomcatConstants.DEFAULT_SSH_PORT;
   public String sshUser = "";
