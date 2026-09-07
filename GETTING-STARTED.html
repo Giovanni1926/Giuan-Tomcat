@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Getting Started — Giuan Tomcat</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #24292f; max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
+  h1, h2, h3 { color: #0d1117; }
+  h1 { border-bottom: 2px solid #e6edf3; padding-bottom: .5rem; }
+  h2 { border-bottom: 1px solid #e6edf3; padding-bottom: .3rem; margin-top: 2rem; }
+  code { background: #f6f8fa; border-radius: 4px; padding: .15em .35em; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .92em; }
+  pre { background: #0d1117; color: #e6edf3; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; color: inherit; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #d0d7de; padding: .5rem .75rem; text-align: left; vertical-align: top; }
+  th { background: #f6f8fa; }
+  a { color: #0969da; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  blockquote { margin: 1rem 0; padding: .5rem 1rem; border-left: 4px solid #d0d7de; background: #f6f8fa; }
+  ol li, ul li { margin: .25rem 0; }
+</style>
+</head>
+<body>
+
+<h1>Getting Started — Giuan Tomcat</h1>
+
+<p>Quick start for the <strong>Giuan Tomcat</strong> IntelliJ plugin: from zero to running your web
+application on an auto-generated Apache Tomcat instance.</p>
+
+<blockquote>
+<p>Related docs: full features in <a href="PLUGIN-DESCRIPTION.md">PLUGIN-DESCRIPTION.md</a>,
+HotSwap environment setup in <a href="GUIDA-HOTSWAP.md">GUIDA-HOTSWAP.md</a>.</p>
+</blockquote>
+
+<h2>Prerequisites</h2>
+<ul>
+  <li><strong>IntelliJ IDEA</strong> (Ultimate or Community) with the Java plugin.</li>
+  <li>An <strong>Apache Tomcat</strong> installation (its <code>CATALINA_HOME</code> folder). The plugin
+    works with any Tomcat that keeps the standard layout (<code>bin/bootstrap.jar</code> +
+    <code>bin/tomcat-juli.jar</code>): <strong>Tomcat 7.x, 8.x/8.5 and 9.x</strong> (9 is the version the
+    plugin is developed and tested against). Tomcat 10+ works too, provided your web application uses the
+    <strong>Jakarta EE</strong> namespace and a suitable JDK (Java 11+).</li>
+  <li>A Maven-style web project whose modules compile into <code>target/classes</code>
+    (the plugin reads the compiled output and compile-scope dependencies).</li>
+  <li><strong>Any JDK</strong> for a normal run: the plugin uses the project SDK. A DCEVM-patched JDK
+    (Java 7/8/9/10/11) is required only for the optional <strong>HotSwap</strong> mode.</li>
+</ul>
+
+<h2>1. Create the run configuration</h2>
+<p>Open <strong>Run &rarr; Edit Configurations... &rarr; + &rarr; Giuan Tomcat</strong>, then fill in:</p>
+
+<table>
+  <thead>
+    <tr><th>Field</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>CATALINA_HOME</strong></td><td>Folder of your Tomcat installation.</td></tr>
+    <tr><td><strong>Web content (docBase)</strong></td><td>Directory containing the web content (its <code>WEB-INF/web.xml</code> + static files). Used directly as the app <code>docBase</code>.</td></tr>
+    <tr><td><strong>Context path</strong></td><td>The application URL path, e.g. <code>/myapp</code>.</td></tr>
+    <tr><td><strong>HTTP port</strong></td><td>HTTP connector port (default <code>8080</code>).</td></tr>
+    <tr><td><strong>Shutdown port</strong></td><td>Tomcat shutdown port (default <code>8005</code>).</td></tr>
+    <tr><td><strong>Modules</strong></td><td>Press <strong>Configure...</strong> to pick the modules that contribute to the application classpath (see next step).</td></tr>
+    <tr><td><strong>Skip Servlet annotation scan</strong></td><td>Optional global speed-up (see &ldquo;Startup scan skip&rdquo; below).</td></tr>
+    <tr><td><strong>Enable HotSwap (DCEVM + hotswap-agent)</strong></td><td>Optional hot reload mode (see <a href="GUIDA-HOTSWAP.md">GUIDA-HOTSWAP.md</a> and the download links in step 5).</td></tr>
+  </tbody>
+</table>
+
+<h2>2. Select the modules (classpath &amp; scan skips)</h2>
+<p>Click <strong>Modules &rarr; Configure...</strong>. A <strong>3-column</strong> dialog opens:</p>
+<ol>
+  <li><strong>Available modules</strong> — the project modules you can add (grouped by folder;
+    double-click or use <code>&gt;</code>).</li>
+  <li><strong>Selected modules (app classpath)</strong> — the modules whose <code>target/classes</code>
+    and compile dependencies form the application classpath (remove with <code>&#10005;</code> /
+    <code>&#10005; all</code>).</li>
+  <li><strong>Manage skips</strong> — with a module selected in the middle column, a table lists its
+    dependency jars; for each jar tick <strong>Skip TLD</strong> and/or <strong>Skip pluggable</strong>
+    to exclude it from Tomcat&rsquo;s startup scan, or leave them unticked to keep it scanned
+    (skip / non-skip, per jar).</li>
+</ol>
+<p>Click <strong>OK</strong> to confirm; the summary under <strong>Modules</strong> shows the number of
+selected modules.</p>
+
+<h2>3. (Optional) Speed up startup — startup scan skip</h2>
+<p>For large applications you can reduce Tomcat&rsquo;s boot scan time in two ways:</p>
+<ul>
+  <li><strong>Per jar (granular)</strong> — in the module dialog, tick <code>Skip TLD</code> /
+    <code>Skip pluggable</code> for the jars you want excluded. Once at least one jar is skipped the
+    plugin writes into the generated <code>context.xml</code> a
+    <code>&lt;JarScanner&gt;</code>/<code>&lt;JarScanFilter&gt;</code> block and sets
+    <code>reloadable="false"</code> + <code>containerSciFilter</code> on the
+    <code>&lt;Context&gt;</code>. Non-flagged jars stay scanned and mounted.</li>
+  <li><strong>Global annotation scan</strong> — tick <strong>Skip Servlet annotation scan ...</strong>
+    in the main dialog. On run the plugin adds <code>metadata-complete="true"</code> and an empty
+    <code>&lt;absolute-ordering/&gt;</code> to your web content <code>WEB-INF/web.xml</code>,
+    disabling Servlet annotation scanning and web-fragment/SCI discovery. Unticking the box on a later
+    run removes <strong>exactly</strong> what the plugin added.</li>
+</ul>
+
+<h2>4. Run (or Debug)</h2>
+<p>Press <strong>Run &#9654;</strong> or <strong>Debug</strong> for the configuration. The plugin:</p>
+<ol>
+  <li>Resolves <code>target/classes</code> and the compile dependency jars of the selected modules.</li>
+  <li>Auto-generates a <strong>CATALINA_BASE</strong> in the system temp folder
+    (<code>&lt;tmp&gt;/giuan-tomcat/&lt;hash&gt;/catalina-base</code>) writing
+    <code>conf/server.xml</code> (your ports) and <code>conf/Catalina/localhost/&lt;context&gt;.xml</code>.</li>
+  <li>Builds the <strong>merged classpath</strong> in <code>&lt;tmp&gt;/giuan-tomcat/&lt;hash&gt;/giuan-merged</code>
+    (hard links / junctions of <code>WEB-INF/classes</code> and <code>WEB-INF/lib</code>,
+    deduplicated and incremental).</li>
+  <li>Launches <code>org.apache.catalina.startup.Bootstrap</code> via <code>JavaCommandLineState</code>,
+    so <strong>Debug</strong> uses IntelliJ&rsquo;s native debugger — breakpoints, variables and stack
+    traces work out of the box.</li>
+</ol>
+
+<p>The CATALINA_BASE instance is kept between runs and reused: you can stop and start again, and each
+run configuration maps to its own folder (hash of project + configuration name), so homonymous
+configurations from different projects never overlap.</p>
+
+<p>Open your browser at <code>http://localhost:&lt;http-port&gt;&lt;context-path&gt;</code> to reach the
+application.</p>
+
+<h2>5. Optional HotSwap (DCEVM + hotswap-agent)</h2>
+<p>If you need runtime class redefinition (add/remove fields/methods without restarting), you need a
+JDK patched with DCEVM. Per the
+<a href="https://dcevm.github.io/">DCEVM project</a>, the supported HotSpot versions are
+<strong>7, 8, 9, 10 and 11</strong>.</p>
+
+<h3>Where to download the components</h3>
+<ul>
+  <li><strong>JDK 8 (recommended 8u181)</strong> —
+    <a href="https://www.oracle.com/java/technologies/javase/javase8-archive-downloads.html">Oracle Java SE 8 archive downloads</a>
+    (file <code>jdk-8u181-windows-x64.exe</code>).</li>
+  <li><strong>DCEVM installer</strong> (patches the JDK as altjvm) —
+    <a href="https://dcevm.github.io/">dcevm.github.io binaries</a>: installers for
+    <code>8u181</code>, <code>8u152</code> and <code>7u79</code>; all versions on
+    <a href="https://github.com/dcevm/dcevm/releases">GitHub dcevm releases</a>.</li>
+  <li><strong>Java 11</strong> — <a href="https://github.com/TravaOpenJDK/trava-jdk-11-dcevm/releases">Trava OpenJDK</a>,
+    a JDK 11 with DCEVM and hotswap-agent already integrated.</li>
+  <li><strong>hotswap-agent.jar</strong> —
+    <a href="https://github.com/HotswapProjects/HotswapAgent/releases">HotswapAgent releases</a>
+    (stable 2.x version).</li>
+  <li><strong>Official guides</strong> — <a href="https://hotswapagent.org/mydoc_quickstart.html">hotswapagent.org Quick Start (JDK 8)</a>
+    and the <a href="https://dcevm.github.io/">DCEVM project page</a>. Full setup steps also in
+    <a href="GUIDA-HOTSWAP.md">GUIDA-HOTSWAP.md</a>.</li>
+</ul>
+
+<h3>Configuration and use</h3>
+<ol>
+  <li>In the run configuration tick <strong>Enable HotSwap (DCEVM + hotswap-agent)</strong> and set
+    <strong>DCEVM JDK</strong> (the patched JDK home) and <strong>hotswap-agent.jar</strong>.</li>
+  <li>After editing classes press <strong>Build (Ctrl+F9)</strong>; the reload is applied without
+    restarting (in Run the agent auto-reloads, in Debug the IDE debugger does the Hot Swap — set
+    <strong>Debugger &rarr; HotSwap &rarr; &ldquo;Reload classes after compilation&rdquo; = Always</strong>
+    for automatic reload).</li>
+</ol>
+
+<h2>Troubleshooting tips</h2>
+<ul>
+  <li>Ensure the web content folder actually contains <code>WEB-INF/web.xml</code>.</li>
+  <li>Modules must expose a <code>target/classes</code> output; otherwise they are skipped with a log
+    message.</li>
+  <li>Only <strong>compile-scope</strong> libraries of the selected modules end up in
+    <code>WEB-INF/lib</code>.</li>
+  <li>If ports 8080/8005 are busy, change <strong>HTTP port</strong> / <strong>Shutdown port</strong> in
+    the configuration.</li>
+  <li><strong>Tomcat 10+:</strong> the application must be built with the Jakarta EE namespace
+    (<code>jakarta.*</code>) and run on Java 11+; Tomcat 8/8.5/9 use the javax namespace.</li>
+</ul>
+
+</body>
+</html>

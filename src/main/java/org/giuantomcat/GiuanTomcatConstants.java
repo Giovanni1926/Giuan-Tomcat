@@ -20,6 +20,42 @@ public final class GiuanTomcatConstants {
   /** Default shutdown port used for a new run configuration. */
   public static final String DEFAULT_SHUTDOWN_PORT = "8005";
 
+  /** Default HTTP port of a managed remote Tomcat instance (integer form). */
+  public static final int DEFAULT_HTTP_PORT_INT = 8080;
+
+  /** Default SSH port of a managed remote Tomcat instance. */
+  public static final int DEFAULT_SSH_PORT = 22;
+
+  /** Default Tomcat Manager text-API path relative to the instance host/port. */
+  public static final String DEFAULT_MANAGER_PATH = "/manager/text";
+
+  /** Default remote log file tailed over SSH (relative to the SSH working directory). */
+  public static final String DEFAULT_LOG_FILE = "logs/catalina.out";
+
+  /** Timeout (ms) for Tomcat Manager HTTP calls. */
+  public static final int MANAGER_TIMEOUT_MS = 15_000;
+
+  /** Timeout (ms) for SSH connect/authentication. */
+  public static final int SSH_TIMEOUT_MS = 30_000;
+
+  /** Number of lines prefixed by the remote {@code tail} when streaming logs. */
+  public static final int LOG_TAIL_LINES = 200;
+
+  /** PasswordSafe service prefix keyed by instance id. */
+  public static final String CREDENTIAL_SERVICE_PREFIX = "giuan-tomcat:instance:";
+
+  /** PasswordSafe key for the Tomcat Manager password. */
+  public static final String CREDENTIAL_KEY_MANAGER = "manager";
+
+  /** PasswordSafe key for the SSH password. */
+  public static final String CREDENTIAL_KEY_SSH_PASSWORD = "ssh-password";
+
+  /** PasswordSafe key for the SSH private-key passphrase. */
+  public static final String CREDENTIAL_KEY_SSH_PASSPHRASE = "ssh-passphrase";
+
+  /** File name of the application-level instances store under the IDE config folder. */
+  public static final String INSTANCES_STORAGE_FILE = "giuan-tomcat-instances.xml";
+
   /** Name of the root folder under the system temp dir holding the generated environment. */
   public static final String TMP_ROOT_NAME = "giuan-tomcat";
 
