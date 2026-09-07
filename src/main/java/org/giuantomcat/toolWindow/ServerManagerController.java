@@ -2,6 +2,7 @@ package org.giuantomcat.toolWindow;
 
 import org.giuantomcat.toolWindow.api.TomcatManagerClient;
 import org.giuantomcat.toolWindow.model.TomcatApplication;
+import org.giuantomcat.toolWindow.model.TomcatGroup;
 import org.giuantomcat.toolWindow.model.TomcatInstance;
 import org.giuantomcat.toolWindow.settings.TomcatCredentialsStore;
 import org.giuantomcat.toolWindow.settings.TomcatInstancesSettings;
@@ -22,13 +23,97 @@ import java.util.Map;
 public final class ServerManagerController {
 
   private final TomcatInstancesSettings mySettings;
+  private final List<TomcatGroup> myGroups = new ArrayList<>();
   private final List<TomcatInstance> myInstances = new ArrayList<>();
   private final Map<String, List<TomcatApplication>> myApplicationsById = new LinkedHashMap<>();
   private final Map<String, String> myErrorsById = new LinkedHashMap<>();
 
   public ServerManagerController() {
     mySettings = TomcatInstancesSettings.getInstance();
+    myGroups.addAll(mySettings.getGroups());
     myInstances.addAll(mySettings.getInstances());
+  }
+
+  // ---- groups ----
+
+  public List<TomcatGroup> getGroups() {
+    return new ArrayList<>(myGroups);
+  }
+
+  public boolean hasGroups() {
+    return !myGroups.isEmpty();
+  }
+
+  public TomcatGroup findGroupById(String id) {
+    for (TomcatGroup group : myGroups) {
+      if (group.id.equals(id)) {
+        return group;
+      }
+    }
+    return null;
+  }
+
+  public TomcatGroup findGroupByName(String name) {
+    for (TomcatGroup group : myGroups) {
+      if (group.name.equals(name)) {
+        return group;
+      }
+    }
+    return null;
+  }
+
+  public void addGroup(TomcatGroup group) {
+    myGroups.add(group);
+    persist();
+  }
+
+  public void updateGroup(TomcatGroup group) {
+    for (int i = 0; i < myGroups.size(); i++) {
+      if (myGroups.get(i).id.equals(group.id)) {
+        myGroups.set(i, group);
+        break;
+      }
+    }
+    persist();
+  }
+
+  public void removeGroup(String groupId) {
+    for (TomcatInstance instance : myInstances) {
+      if (groupId.equals(instance.groupId)) {
+        instance.groupId = "";
+      }
+    }
+    myGroups.removeIf(group -> group.id.equals(groupId));
+    persist();
+  }
+
+  public boolean hasMembers(String groupId) {
+    for (TomcatInstance instance : myInstances) {
+      if (groupId.equals(instance.groupId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public List<TomcatInstance> getMembers(String groupId) {
+    List<TomcatInstance> members = new ArrayList<>();
+    for (TomcatInstance instance : myInstances) {
+      if (groupId.equals(instance.groupId)) {
+        members.add(instance);
+      }
+    }
+    return members;
+  }
+
+  public List<TomcatInstance> getUngroupedInstances() {
+    List<TomcatInstance> members = new ArrayList<>();
+    for (TomcatInstance instance : myInstances) {
+      if (instance.groupId == null || instance.groupId.isEmpty()) {
+        members.add(instance);
+      }
+    }
+    return members;
   }
 
   public List<TomcatInstance> getInstances() {
@@ -109,6 +194,7 @@ public final class ServerManagerController {
   }
 
   private void persist() {
+    mySettings.setGroups(myGroups);
     mySettings.setInstances(myInstances);
   }
 }

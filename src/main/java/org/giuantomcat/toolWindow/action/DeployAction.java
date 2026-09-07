@@ -6,19 +6,21 @@ import org.giuantomcat.toolWindow.ServerManagerPanel;
 import org.giuantomcat.toolWindow.TomcatToolWindowIcons;
 import org.jetbrains.annotations.NotNull;
 
-/** Toolbar action that deploys a new application to the currently selected instance. */
+/** Toolbar action that deploys a new application to the current target (an instance or a group). */
 public final class DeployAction extends AnAction {
 
   private final ServerManagerPanel myPanel;
 
   public DeployAction(ServerManagerPanel panel) {
-    super("Deploy", "Deploy a new application to the selected instance", TomcatToolWindowIcons.DEPLOY);
+    super("Deploy", "Deploy a new application to the selected instance or group",
+        TomcatToolWindowIcons.DEPLOY);
     myPanel = panel;
   }
 
   @Override
   public void update(@NotNull AnActionEvent e) {
-    e.getPresentation().setEnabled(myPanel.hasSelection());
+    e.getPresentation().setEnabled(myPanel.hasDeployTarget());
+    e.getPresentation().setText(myPanel.deployActionText());
   }
 
   @Override
