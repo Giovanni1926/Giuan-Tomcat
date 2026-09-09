@@ -8,6 +8,7 @@ import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.FormBuilder;
+import com.intellij.util.ui.JBUI;
 import org.giuantomcat.GiuanTomcatConstants;
 import org.giuantomcat.runConfiguration.runner.GiuanTomcatRunConfiguration;
 import org.jetbrains.annotations.NotNull;
@@ -18,6 +19,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -92,16 +94,30 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
     modulesConfigureButton.addActionListener(e -> openModuleSelectorDialog());
 
     myPanel = FormBuilder.createFormBuilder()
+        .addComponent(sectionHeader("Tomcat"))
         .addLabeledComponent("CATALINA_HOME", catalinaHomeField)
         .addLabeledComponent("Web content (docBase)", webContentField)
         .addLabeledComponent("Context path", contextPathField)
         .addLabeledComponent("HTTP port", httpPortField)
         .addLabeledComponent("Shutdown port", shutdownPortField)
-        .addComponent(skipAnnotationScanCheckBox)
         .addComponent(connectorPropertiesPanel.getComponent())
+        .addVerticalGap(12)
+        .addComponent(sectionHeader("Startup scan"))
+        .addComponent(skipAnnotationScanCheckBox)
+        .addVerticalGap(12)
+        .addComponent(sectionHeader("Application classpath"))
         .addLabeledComponent(MODULES_LABEL, createModulesSummaryPanel())
+        .addVerticalGap(12)
+        .addComponent(sectionHeader("HotSwap"))
         .addComponent(createHotSwapPanel())
         .getPanel();
+  }
+
+  private static JBLabel sectionHeader(String text) {
+    JBLabel label = new JBLabel(text);
+    label.setFont(label.getFont().deriveFont(Font.BOLD));
+    label.setBorder(JBUI.Borders.empty(6, 0, 2, 0));
+    return label;
   }
 
   private JPanel createModulesSummaryPanel() {
@@ -195,6 +211,8 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
   @NotNull
   @Override
   protected JComponent createEditor() {
-    return new JBScrollPane(myPanel);
+    JBScrollPane scroll = new JBScrollPane(myPanel);
+    scroll.setBorder(JBUI.Borders.empty());
+    return scroll;
   }
 }
