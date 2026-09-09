@@ -11,6 +11,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
@@ -99,7 +100,7 @@ public final class TomcatManagerClient {
   private void upload(File war, String path) throws TomcatManagerException {
     HttpURLConnection connection = null;
     try {
-      URL url = new URL(myBaseUrl + path);
+      URL url = URI.create(myBaseUrl + path).toURL();
       connection = (HttpURLConnection) url.openConnection();
       connection.setRequestMethod("PUT");
       connection.setRequestProperty("Authorization", myAuthorization);
@@ -130,7 +131,7 @@ public final class TomcatManagerClient {
       }
     } catch (TomcatManagerException e) {
       throw e;
-    } catch (IOException e) {
+    } catch (IOException | IllegalArgumentException e) {
       throw new TomcatManagerException("Deploy failed: " + e.getMessage(), e);
     } finally {
       if (connection != null) {

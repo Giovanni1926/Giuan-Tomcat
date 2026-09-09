@@ -83,7 +83,7 @@ public final class InstanceDialog extends DialogWrapper {
     groupCombo.addActionListener(e -> onGroupChanged());
 
     sshKeyField.addBrowseFolderListener(null,
-        FileChooserDescriptorFactory.createSingleFileDescriptor()
+        FileChooserDescriptorFactory.singleFile()
             .withTitle("Select SSH private key"));
 
     if (existing != null) {

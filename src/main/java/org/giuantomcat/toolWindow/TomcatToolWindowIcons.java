@@ -1,7 +1,7 @@
 package org.giuantomcat.toolWindow;
 
 import com.intellij.icons.AllIcons;
-import com.intellij.ui.IconManager;
+import com.intellij.openapi.util.IconLoader;
 
 import javax.swing.Icon;
 
@@ -33,6 +33,6 @@ public final class TomcatToolWindowIcons {
   public static final Icon ERROR = AllIcons.General.Error;
 
   private static Icon icon(String path) {
-    return IconManager.getInstance().getIcon(path, TomcatToolWindowIcons.class);
+    return IconLoader.getIcon(path, TomcatToolWindowIcons.class);
   }
 }

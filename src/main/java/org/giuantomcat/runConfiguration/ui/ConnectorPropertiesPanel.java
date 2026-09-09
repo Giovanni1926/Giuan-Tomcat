@@ -1,11 +1,14 @@
 package org.giuantomcat.runConfiguration.ui;
 
-import com.intellij.ui.HideableTitledPanel;
+import com.intellij.icons.AllIcons;
+import com.intellij.ui.TitledSeparator;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
+import com.intellij.util.ui.UIUtil;
 import org.giuantomcat.runConfiguration.settings.ConnectorProperties;
 
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
@@ -14,27 +17,39 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Window;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 /**
  * Editor for the additional {@code <Connector>} attributes written into the generated
- * {@code server.xml}. The whole section is a collapsible accordion; inside, a dropdown lists the
- * fixed {@link ConnectorProperties#CATALOG}, a text field holds the value and the configured
- * attributes are shown in a table (one row per attribute).
+ * {@code server.xml}. The section is a collapsible titled panel replicating the
+ * {@code HideableDecorator} behaviour of the "Before launch" run-configuration section (a
+ * clickable {@link TitledSeparator} with an arrow that hides/shows the content): inside, a
+ * dropdown lists the fixed {@link ConnectorProperties#CATALOG}, a text field holds the value and
+ * the configured attributes are shown in a striped table (one row per attribute).
  */
 public final class ConnectorPropertiesPanel {
 
   private static final int COL_NAME = 0;
   private static final int COL_VALUE = 1;
+
+  private static final String SECTION_TITLE = "Connector attributes";
+  private static final int ICON_TEXT_GAP = 5;
+  private static final String TABLE_HEADER_FONT_KEY = "TableHeader.font";
 
   private final Set<String> myTokens = new LinkedHashSet<>();
 
@@ -53,7 +68,11 @@ public final class ConnectorPropertiesPanel {
   };
   private final JBTable myTable = new JBTable(myTableModel);
 
-  private final HideableTitledPanel myPanel;
+  private final TitledSeparator mySeparator = new TitledSeparator(SECTION_TITLE);
+  private final JPanel myBody = new JPanel(new BorderLayout(0, 6));
+  private final JPanel myPanel = new JPanel(new BorderLayout());
+  private boolean myExpanded = true;
+  private Dimension myPreviousBodySize;
 
   public ConnectorPropertiesPanel() {
     prefillFromCombo();
@@ -82,12 +101,23 @@ public final class ConnectorPropertiesPanel {
     scroll.setPreferredSize(JBUI.size(560, 140));
     scroll.setBorder(JBUI.Borders.empty());
 
-    JPanel body = new JPanel(new BorderLayout(0, 6));
-    body.setBorder(JBUI.Borders.empty());
-    body.add(controls, BorderLayout.NORTH);
-    body.add(scroll, BorderLayout.CENTER);
+    myBody.setBorder(JBUI.Borders.empty());
+    myBody.add(controls, BorderLayout.NORTH);
+    myBody.add(scroll, BorderLayout.CENTER);
 
-    myPanel = new HideableTitledPanel("Connector attributes", body, true);
+    JPanel header = new JPanel(new BorderLayout());
+    header.add(mySeparator, BorderLayout.CENTER);
+    mySeparator.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    mySeparator.addMouseListener(new MouseAdapter() {
+      @Override
+      public void mouseReleased(MouseEvent e) {
+        setExpanded(!myExpanded);
+      }
+    });
+
+    myPanel.add(header, BorderLayout.NORTH);
+    myPanel.add(myBody, BorderLayout.CENTER);
+    updateExpandedIcon();
     refreshRows();
   }
 
@@ -111,6 +141,46 @@ public final class ConnectorPropertiesPanel {
 
   public Set<String> getTokens() {
     return new LinkedHashSet<>(myTokens);
+  }
+
+  private void setExpanded(boolean expanded) {
+    myExpanded = expanded;
+    updateExpandedIcon();
+    if (expanded) {
+      myBody.setVisible(true);
+    } else {
+      myPreviousBodySize = myBody.getSize();
+      myBody.setVisible(false);
+    }
+    adjustWindow();
+    myPanel.invalidate();
+    myPanel.repaint();
+  }
+
+  /** Resizes the enclosing window by the collapsed/expanded body height (like {@code HideableDecorator}). */
+  private void adjustWindow() {
+    Window window = SwingUtilities.getWindowAncestor(myPanel);
+    if (window == null) {
+      return;
+    }
+    Dimension bodySize = myPreviousBodySize;
+    if (bodySize == null || bodySize.width <= 0 || bodySize.height <= 0) {
+      bodySize = myBody.getPreferredSize();
+    }
+    Dimension windowSize = window.getSize();
+    Dimension newSize = myExpanded
+        ? new Dimension(Math.max(windowSize.width, myBody.getSize().width),
+            windowSize.height + bodySize.height)
+        : new Dimension(windowSize.width, windowSize.height - bodySize.height);
+    if (!newSize.equals(windowSize)) {
+      UIUtil.invokeLaterIfNeeded(() -> window.setSize(newSize));
+    }
+  }
+
+  private void updateExpandedIcon() {
+    Icon icon = myExpanded ? AllIcons.General.ArrowDown : AllIcons.General.ArrowRight;
+    mySeparator.getLabel().setIcon(icon);
+    mySeparator.getLabel().setIconTextGap(ICON_TEXT_GAP);
   }
 
   private void prefillFromCombo() {
@@ -171,8 +241,6 @@ public final class ConnectorPropertiesPanel {
 
   /** Left-aligned, bold header titles with padding, aligned with the cell content below. */
   private static final class HeaderRenderer extends DefaultTableCellRenderer {
-
-    private static final String TABLE_HEADER_FONT_KEY = "TableHeader.font";
 
     @Override
     public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
