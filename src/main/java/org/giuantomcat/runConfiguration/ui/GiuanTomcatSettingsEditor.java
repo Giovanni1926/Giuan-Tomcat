@@ -50,6 +50,8 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
   private final JBLabel modulesSummary;
   private final JButton modulesConfigureButton;
 
+  private final ConnectorPropertiesPanel connectorPropertiesPanel = new ConnectorPropertiesPanel();
+
   private Set<String> moduleNames = new LinkedHashSet<>();
   private Set<String> jarSkipTokens = new LinkedHashSet<>();
   private String dcevmJdkPath = "";
@@ -96,6 +98,7 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
         .addLabeledComponent("HTTP port", httpPortField)
         .addLabeledComponent("Shutdown port", shutdownPortField)
         .addComponent(skipAnnotationScanCheckBox)
+        .addComponent(connectorPropertiesPanel.getComponent())
         .addLabeledComponent(MODULES_LABEL, createModulesSummaryPanel())
         .addComponent(createHotSwapPanel())
         .getPanel();
@@ -167,6 +170,7 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
 
     moduleNames = new LinkedHashSet<>(configuration.getModuleNames());
     jarSkipTokens = new LinkedHashSet<>(configuration.getJarSkipTokens());
+    connectorPropertiesPanel.setTokens(configuration.getConnectorProperties());
     updateModulesSummary();
   }
 
@@ -185,6 +189,7 @@ public class GiuanTomcatSettingsEditor extends SettingsEditor<GiuanTomcatRunConf
 
     configuration.setModuleNames(moduleNames);
     configuration.setJarSkipTokens(jarSkipTokens);
+    configuration.setConnectorProperties(connectorPropertiesPanel.getTokens());
   }
 
   @NotNull

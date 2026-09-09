@@ -14,6 +14,7 @@ import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.progress.ProgressManager;
+import org.giuantomcat.runConfiguration.settings.ConnectorProperties;
 import org.giuantomcat.tomcat.CatalinaBaseGenerator;
 import org.giuantomcat.tomcat.ClasspathResolver;
 import org.giuantomcat.tomcat.GiuanTomcatPaths;
@@ -55,6 +56,7 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
           myConfiguration.getWebContent(), myConfiguration.getContextPath(),
           myConfiguration.getHttpPort(), myConfiguration.getShutdownPort(),
           myConfiguration.isSkipAnnotationScan(),
+          ConnectorProperties.decode(myConfiguration.getConnectorProperties()),
           classpath,
           ProgressManager.getInstance().getProgressIndicator());
     } catch (IOException e) {

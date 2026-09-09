@@ -59,7 +59,7 @@ public final class ContextXmlBuilder {
     return sb.toString();
   }
 
-  private static String escapeXml(String value) {
+  static String escapeXml(String value) {
     if (value == null) {
       return "";
     }

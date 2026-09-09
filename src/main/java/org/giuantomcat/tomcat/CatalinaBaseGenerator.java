@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public final class CatalinaBaseGenerator {
 
@@ -45,6 +47,7 @@ public final class CatalinaBaseGenerator {
                               String webContent, String contextPath,
                               String httpPort, String shutdownPort,
                               boolean skipAnnotationScan,
+                              Map<String, String> connectorAttributes,
                               Classpath classpath,
                               ProgressIndicator indicator) throws IOException {
     File base = GiuanTomcatPaths.catalinaBase(project, configName);
@@ -60,7 +63,7 @@ public final class CatalinaBaseGenerator {
 
     report(indicator, "Preparing Giuan Tomcat environment", "Writing server.xml");
     writeFile(new File(new File(base, CONF_DIR), SERVER_XML),
-        buildServerXml(httpPort, shutdownPort));
+        buildServerXml(httpPort, shutdownPort, connectorAttributes));
 
     report(indicator, "Consolidating application classpath", null);
     Merged merged = ResourceConsolidator.consolidate(mergedRoot, classpath, indicator);
@@ -206,7 +209,27 @@ public final class CatalinaBaseGenerator {
     }
   }
 
-  private static String buildServerXml(String httpPort, String shutdownPort) {
+  private static String buildServerXml(String httpPort, String shutdownPort,
+                                       Map<String, String> connectorAttributes) {
+    LinkedHashMap<String, String> attributes = new LinkedHashMap<>();
+    attributes.put("port", httpPort);
+    attributes.put("protocol", "HTTP/1.1");
+    attributes.put("connectionTimeout", "20000");
+    attributes.put("redirectPort", "8443");
+    if (connectorAttributes != null) {
+      // Override/extend the fixed defaults so no attribute is ever duplicated.
+      for (Map.Entry<String, String> attribute : connectorAttributes.entrySet()) {
+        if (attribute.getValue() != null) {
+          attributes.put(attribute.getKey(), attribute.getValue());
+        }
+      }
+    }
+    StringBuilder connector = new StringBuilder("<Connector");
+    for (Map.Entry<String, String> attribute : attributes.entrySet()) {
+      connector.append(" ").append(attribute.getKey())
+          .append("=\"").append(ContextXmlBuilder.escapeXml(attribute.getValue())).append("\"");
+    }
+    connector.append("/>");
     return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
         "<Server port=\"" + shutdownPort + "\" shutdown=\"" + SHUTDOWN_CMD + "\">\n" +
         "  <Listener className=\"org.apache.catalina.startup.VersionLoggerListener\"/>\n" +
@@ -221,8 +244,7 @@ public final class CatalinaBaseGenerator {
         "              pathname=\"conf/tomcat-users.xml\"/>\n" +
         "  </GlobalNamingResources>\n" +
         "  <Service name=\"Catalina\">\n" +
-        "    <Connector port=\"" + httpPort + "\" protocol=\"HTTP/1.1\"\n" +
-        "               connectionTimeout=\"20000\" redirectPort=\"8443\"/>\n" +
+        "    " + connector + "\n" +
         "    <Engine name=\"Catalina\" defaultHost=\"localhost\">\n" +
         "      <Realm className=\"org.apache.catalina.realm.LockOutRealm\">\n" +
         "        <Realm className=\"org.apache.catalina.realm.UserDatabaseRealm\" resourceName=\"UserDatabase\"/>\n" +

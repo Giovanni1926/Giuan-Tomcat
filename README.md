@@ -38,6 +38,12 @@ The "Giuan Tomcat" run configuration exposes the following fields:
   web-fragment/SCI across the whole application). The additions are marked with a comment: if you
   later untick the checkbox, on a subsequent run the plugin **removes** exactly what it added,
   leaving pre-existing elements intact. Idempotent.
+- **Additional Connector attributes** — optional attributes written on the `<Connector>` of the
+  generated `server.xml` (the `relaxedPathChars`/`relaxedQueryChars` "relax" properties, plus
+  `URIEncoding`, `maxHttpHeaderSize`, `compression`, `encodedSolidusHandling`, etc.). A dropdown
+  lists a fixed catalogue of connector attributes; for each one you set a value and add it to a
+  table (one row per attribute, "Add / update" and "Remove"). Port, protocol and redirect port are
+  always managed by the plugin and are not overridable.
 - **Enable HotSwap (DCEVM + hotswap-agent)** — ticking the checkbox opens a dialog
   where you select:
   - **DCEVM JDK** — a JDK 8 with DCEVM already installed as altjvm (prerequisite: follow the

@@ -29,6 +29,9 @@ public class GiuanTomcatRunConfigurationOptions extends RunConfigurationOptions 
   private final StoredProperty<Set<String>> myJarSkipTokens =
       stringSet().provideDelegate(this, "jarSkipTokens");
 
+  private final StoredProperty<Set<String>> myConnectorProperties =
+      stringSet().provideDelegate(this, "connectorProperties");
+
   private final StoredProperty<Boolean> mySkipAnnotationScan =
       property(false).provideDelegate(this, "skipAnnotationScan");
 
@@ -95,6 +98,14 @@ public class GiuanTomcatRunConfigurationOptions extends RunConfigurationOptions 
 
   public void setJarSkipTokens(Set<String> jarSkipTokens) {
     myJarSkipTokens.setValue(this, jarSkipTokens);
+  }
+
+  public Set<String> getConnectorProperties() {
+    return myConnectorProperties.getValue(this);
+  }
+
+  public void setConnectorProperties(Set<String> connectorProperties) {
+    myConnectorProperties.setValue(this, connectorProperties);
   }
 
   public boolean isSkipAnnotationScan() {

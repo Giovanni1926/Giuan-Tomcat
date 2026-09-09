@@ -88,6 +88,14 @@
           contribute to the application classpath. The CATALINA_BASE is auto-generated in the system
           temp folder (<code>&lt;tmp&gt;/giuan-tomcat/&lt;hash&gt;/catalina-base</code>, where the
           hash derives from the project location and the configuration name).</li>
+        <li><b>Additional Connector attributes</b> — a dropdown in the run configuration lets you
+          add optional attributes to the <code>&lt;Connector&gt;</code> of the generated
+          <code>server.xml</code> (e.g. <code>relaxedPathChars</code>/<code>relaxedQueryChars</code>
+          to accept unencoded characters in paths/query strings, plus <code>URIEncoding</code>,
+          <code>maxHttpHeaderSize</code>, <code>compression</code>,
+          <code>encodedSolidusHandling</code>, ...). A fixed catalogue of attributes is offered,
+          each with a modifiable value; port, protocol and redirect port stay managed by the
+          plugin.</li>
         <li><b>Optional HotSwap mode (DCEVM + hotswap-agent)</b> — enable unlimited runtime
           class redefinition (add/remove fields and methods without restarting). It requires a
           JDK patched with DCEVM (see the prerequisites below); the patched JDK is always forced
@@ -124,6 +132,7 @@
   <change-notes>
     <![CDATA[
       <ul>
+        <li><b>3.1.0</b> New "Additional Connector attributes" dropdown in the run configuration: add optional attributes to the &lt;Connector&gt; of the generated server.xml from a fixed catalogue (relaxedPathChars, relaxedQueryChars, URIEncoding, maxHttpHeaderSize, compression, encodedSolidusHandling, ...), each with a modifiable value, stored per configuration.</li>
         <li><b>3.0.0</b> New <b>Server Manager</b> tool window (right anchor, Maven-style toolbar + instance list): add/edit/remove remote Tomcat instances (host + port, per-instance Manager credentials kept in the IDE PasswordSafe), monitor every deployed application with live state and session count, start/stop/reload/undeploy single applications and deploy new WARs through the Tomcat Manager text API, and tail the remote log over SSH (password or private key) into an IDE console.</li>
         <li><b>2.4.0</b> Class &amp; library consolidation (giuan-merged): merge the selected modules' target/classes and compile dependency jars into a merged WEB-INF/classes and WEB-INF/lib via hard links/junctions/symlinks (deduplicated, incremental via a manifest, copy fallback), then mount them through PreResources in context.xml. Per-jar startup-scan skip now lets you choose skip or non-skip granularly for each dependency.</li>
         <li><b>2.3.0</b> Skip scan: per-module jar-scan skip now also sets reloadable="false", containerSciFilter and disables classpath/bootstrap/all-directory/all-file scanning in context.xml; the global annotation-scan skip also writes &lt;absolute-ordering/&gt; into WEB-INF/web.xml.</li>

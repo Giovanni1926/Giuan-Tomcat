@@ -93,6 +93,16 @@ public class GiuanTomcatRunConfiguration
     getOptions().setJarSkipTokens(jarSkipTokens);
   }
 
+  @NotNull
+  public Set<String> getConnectorProperties() {
+    Set<String> props = getOptions().getConnectorProperties();
+    return props != null ? props : Collections.emptySet();
+  }
+
+  public void setConnectorProperties(Set<String> connectorProperties) {
+    getOptions().setConnectorProperties(connectorProperties);
+  }
+
   public boolean isSkipAnnotationScan() {
     return getOptions().isSkipAnnotationScan();
   }
