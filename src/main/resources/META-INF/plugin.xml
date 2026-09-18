@@ -61,14 +61,17 @@
           context path and HTTP/shutdown ports from a single dialog. The CATALINA_BASE is
           auto-generated in the system temp folder
           (<code>&lt;tmp&gt;/giuan-tomcat/&lt;hash&gt;/catalina-base</code>, where the hash
-          derives from the project location and the configuration name).</li>
+          derives from the project location and a stable per-configuration id, so renaming a
+          configuration keeps its instance and two configurations with the same name never
+          collide).</li>
         <li><b>Optional HotSwap mode (Java 8 + DCEVM + hotswap-agent)</b> — enable unlimited
           runtime class redefinition (add/remove fields and methods without restarting).
           DCEVM is always forced when HotSwap is active, in Run and Debug alike; in Debug the
           IDE debugger performs the reload (JDWP), in Run the agent watches
           <code>target/classes</code> automatically (<code>autoHotswap</code>).</li>
         <li><b>Generated instance reuse</b> — each configuration maps to its own folder under the
-          system temp dir (hash of project + configuration name, no collisions between projects);
+          system temp dir (hash of project + stable configuration id, no collisions between
+          projects or same-named configurations);
           the instance is kept between runs and can be started again after it is stopped.</li>
       </ul>
       <p>

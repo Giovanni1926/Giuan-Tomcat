@@ -29,14 +29,14 @@ public final class GiuanTomcatConstants {
   /** Name of the folder inside the runtime root holding the generated CATALINA_BASE. */
   public static final String CATALINA_BASE_DIR_NAME = "catalina-base";
 
-  /** Name of the manifest folder written by {@code ResourceConsolidator} inside the merged root. */
+  /** Name of the manifest file written by {@code ResourceConsolidator} inside the merged root. */
   public static final String MERGED_MANIFEST_NAME = "manifest";
 
   /** Header line marking a manifest written by the plugin. */
   public static final String MANIFEST_HEADER = "giuan-tomcat-merged-manifest";
 
   /** Version of the manifest format written by the plugin. */
-  public static final String MANIFEST_VERSION = "4";
+  public static final String MANIFEST_VERSION = "5";
 
   /** Marker comment injected in {@code WEB-INF/web.xml} to locate plugin-added blocks. */
   public static final String SKIP_MARKER = "<!--[GiuanTomcat skip:annotation-scan]-->";

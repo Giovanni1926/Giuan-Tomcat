@@ -1,10 +1,18 @@
 package org.giuantomcat.runConfiguration.runner;
 
 import com.intellij.execution.ExecutionException;
+import com.intellij.execution.ExecutionResult;
+import com.intellij.execution.Executor;
 import com.intellij.execution.configurations.JavaCommandLineState;
 import com.intellij.execution.configurations.JavaParameters;
+import com.intellij.execution.configurations.RuntimeConfigurationException;
 import com.intellij.execution.executors.DefaultDebugExecutor;
+import com.intellij.execution.process.OSProcessHandler;
+import com.intellij.execution.process.ProcessEvent;
+import com.intellij.execution.process.ProcessHandler;
+import com.intellij.execution.process.ProcessListener;
 import com.intellij.execution.runners.ExecutionEnvironment;
+import com.intellij.execution.runners.ProgramRunner;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
@@ -17,6 +25,7 @@ import com.intellij.openapi.progress.ProgressManager;
 import org.giuantomcat.tomcat.CatalinaBaseGenerator;
 import org.giuantomcat.tomcat.ClasspathResolver;
 import org.giuantomcat.tomcat.GiuanTomcatPaths;
+import org.giuantomcat.tomcat.TomcatRunLock;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -40,10 +49,85 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
 
   @NotNull
   @Override
+  public ExecutionResult execute(@NotNull Executor executor, @NotNull ProgramRunner<?> runner)
+      throws ExecutionException {
+    File runtimeRoot = GiuanTomcatPaths.runtimeRoot(myConfiguration.getProject(),
+        myConfiguration.getRuntimeKey());
+    TomcatRunLock lock;
+    try {
+      lock = TomcatRunLock.acquire(runtimeRoot);
+    } catch (IOException e) {
+      throw new ExecutionException("Avvio rifiutato: " + e.getMessage(), e);
+    }
+    try {
+      ExecutionResult result = super.execute(executor, runner);
+      ProcessHandler processHandler = result.getProcessHandler();
+      if (processHandler == null) {
+        lock.release();
+        return result;
+      }
+      processHandler.addProcessListener(new ProcessListener() {
+        @Override
+        public void startNotified(@NotNull ProcessEvent event) {
+          bindPid(lock, event.getProcessHandler());
+        }
+
+        @Override
+        public void processNotStarted() {
+          lock.release();
+        }
+
+        @Override
+        public void processTerminated(@NotNull ProcessEvent event) {
+          lock.release();
+        }
+      });
+      if (processHandler.isProcessTerminated()) {
+        lock.release();
+      } else if (processHandler.isStartNotified()) {
+        bindPid(lock, processHandler);
+      }
+      return result;
+    } catch (ExecutionException | RuntimeException e) {
+      lock.release();
+      throw e;
+    }
+  }
+
+  private static void bindPid(TomcatRunLock lock, ProcessHandler handler) {
+    long pid = processId(handler);
+    if (pid <= 0) {
+      return;
+    }
+    try {
+      lock.update(pid);
+    } catch (IOException ignored) {
+      // The marker keeps the IDE pid: the instance is still guarded.
+    }
+  }
+
+  private static long processId(ProcessHandler handler) {
+    if (handler instanceof OSProcessHandler osHandler) {
+      try {
+        return osHandler.getProcess().pid();
+      } catch (UnsupportedOperationException e) {
+        return -1;
+      }
+    }
+    return -1;
+  }
+
+  @NotNull
+  @Override
   protected JavaParameters createJavaParameters() throws ExecutionException {
+    try {
+      myConfiguration.checkConfiguration();
+    } catch (RuntimeConfigurationException e) {
+      throw new ExecutionException(e.getMessage(), e);
+    }
     Project project = myConfiguration.getProject();
     String catalinaHome = myConfiguration.getCatalinaHome();
-    File catalinaBase = GiuanTomcatPaths.catalinaBase(project, myConfiguration.getName());
+    File catalinaBase = GiuanTomcatPaths.catalinaBase(project, myConfiguration.getRuntimeKey());
 
     ClasspathResolver.Classpath classpath =
         ClasspathResolver.resolve(project, myConfiguration.getModuleNames(),
@@ -51,7 +135,7 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
 
     try {
       CatalinaBaseGenerator.generate(
-          catalinaHome, project, myConfiguration.getName(),
+          catalinaHome, project, myConfiguration.getRuntimeKey(),
           myConfiguration.getWebContent(), myConfiguration.getContextPath(),
           myConfiguration.getHttpPort(), myConfiguration.getShutdownPort(),
           myConfiguration.isSkipAnnotationScan(),
@@ -65,10 +149,6 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
     parameters.setWorkingDirectory(catalinaBase.getAbsolutePath());
     parameters.getClassPath().add(new File(catalinaHome, BOOTSTRAP_JAR).getAbsolutePath());
     parameters.getClassPath().add(new File(catalinaHome, TOMCAT_JULI_JAR).getAbsolutePath());
-
-    for (String dir : classpath.classesDirs) {
-      parameters.getClassPath().add(dir);
-    }
 
     parameters.getVMParametersList().addProperty("catalina.home", catalinaHome);
     parameters.getVMParametersList().addProperty("catalina.base", catalinaBase.getAbsolutePath());

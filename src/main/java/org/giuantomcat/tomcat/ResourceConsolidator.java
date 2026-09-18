@@ -6,12 +6,13 @@ import org.giuantomcat.tomcat.ClasspathResolver.Classpath;
 import org.giuantomcat.tomcat.link.FileLinker;
 import org.giuantomcat.tomcat.link.FileLinkerFactory;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
@@ -22,7 +23,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -35,10 +38,13 @@ import java.util.Set;
  * per-file hard links only for the files that cannot be covered by a junction: root files and the
  * files living in packages shared by more than one module.
  *
- * <p>The manifest records, per module, the root files and a digest of the direct files of every
- * package. At each run the desired layout is compared with the previous one and only the missing
- * junctions / changed shared packages / changed root files are reconciled: everything unchanged is
- * left untouched.
+ * <p>Every run reconciles the <em>actual</em> filesystem state instead of trusting the previously
+ * recorded one: junctions are verified to resolve to the expected source directory, hard-linked
+ * files are verified to exist with the same size and timestamp as their source, and jars are
+ * verified to be present and up to date. Missing, dangling or stale entries are relinked, so a
+ * partially cleaned or externally damaged merged tree heals automatically on the next run. The
+ * manifest is written afterwards for diagnostics only and lives inside the merged root, so removing
+ * that folder removes it too.
  */
 public final class ResourceConsolidator {
 
@@ -50,6 +56,8 @@ public final class ResourceConsolidator {
   private static final String TAG_MODULE = "M";
   private static final String TAG_ROOT_FILE = "RF";
   private static final String TAG_DIR = "D";
+  private static final String WEB_INF_CLASSES = "WEB-INF/classes";
+  private static final String WEB_INF_LIB = "WEB-INF/lib";
 
   private ResourceConsolidator() {
   }
@@ -64,24 +72,11 @@ public final class ResourceConsolidator {
     }
   }
 
-  private static final class Manifest {
-    final List<String> classesDirs;
-    final Map<String, EntryInfo> jars;
-    final Map<String, ModuleState> modules;
-
-    Manifest(List<String> classesDirs, Map<String, EntryInfo> jars,
-             Map<String, ModuleState> modules) {
-      this.classesDirs = classesDirs;
-      this.jars = jars;
-      this.modules = modules;
-    }
-  }
-
   private static final class ModuleState {
     final Map<String, EntryInfo> rootFiles;
-    final Map<String, String> dirs;
+    final Set<String> dirs;
 
-    ModuleState(Map<String, EntryInfo> rootFiles, Map<String, String> dirs) {
+    ModuleState(Map<String, EntryInfo> rootFiles, Set<String> dirs) {
       this.rootFiles = rootFiles;
       this.dirs = dirs;
     }
@@ -95,22 +90,6 @@ public final class ResourceConsolidator {
       this.size = size;
       this.mtime = mtime;
     }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-      if (!(o instanceof EntryInfo other)) {
-        return false;
-      }
-      return size == other.size && mtime == other.mtime;
-    }
-
-    @Override
-    public int hashCode() {
-      return 31 * Long.hashCode(size) + Long.hashCode(mtime);
-    }
   }
 
   private enum Kind {
@@ -119,7 +98,7 @@ public final class ResourceConsolidator {
   }
 
   /**
-   * Filesystem layout derived from the module states: which directories exist as real nodes in the
+   * Desired layout derived from the module states: which directories exist as real nodes in the
    * merged tree (aggregate dirs for shared packages, junctions for exclusive ones) and the
    * immediate children of every aggregate node.
    */
@@ -130,135 +109,92 @@ public final class ResourceConsolidator {
     final Map<String, List<String>> children = new HashMap<>();
   }
 
+  /**
+   * Reconciles the merged classes tree with the desired layout. The manifest is not consulted:
+   * the decision to link, relink or delete an entry is always taken from the current filesystem
+   * state, so nothing can stay broken after a partial cleanup.
+   */
   private static final class Reconcile {
 
     private final File classesRoot;
     private final Map<String, ModuleState> cur;
-    private final Map<String, ModuleState> prev;
     private final List<String> curModules;
     private final Tree curTree;
-    private final Tree prevTree;
     private final ProgressIndicator indicator;
 
-    Reconcile(File classesRoot, Map<String, ModuleState> cur,
-              Map<String, ModuleState> prev, ProgressIndicator indicator) {
+    Reconcile(File classesRoot, Map<String, ModuleState> cur, ProgressIndicator indicator) {
       this.classesRoot = classesRoot;
       this.cur = cur;
-      this.prev = prev;
       this.curModules = new ArrayList<>(cur.keySet());
       Collections.sort(curModules);
       this.curTree = buildTree(cur);
-      this.prevTree = buildTree(prev);
       this.indicator = indicator;
     }
 
     void run() throws IOException {
-      if (!classesRoot.isDirectory()) {
-        mkdirs(classesRoot);
-      }
-      aggregate("", classesRoot, false);
+      boolean rootMissing = !classesRoot.isDirectory();
+      aggregate("", classesRoot, rootMissing);
     }
 
     private void aggregate(String rel, File dir, boolean force) throws IOException {
       boolean root = rel.isEmpty();
-      boolean rebuilt;
-      if (root) {
-        rebuilt = !dir.isDirectory();
-        if (rebuilt) {
-          mkdirs(dir);
-        }
-        if (rebuilt || !rootUnchanged()) {
-          report("Resyncing classes root");
-          resyncDirect(dir, "", curModules);
-        }
-      } else if (force || !dir.exists()) {
+      boolean recreate = force || !dir.isDirectory() || isLinkedDirectory(dir);
+      if (recreate) {
         rebuild(dir, rel);
-        rebuilt = true;
       } else {
-        List<String> curOwners = sortedOwners(cur, rel);
-        List<String> prevOwners = sortedOwners(prev, rel);
-        boolean prevAggregate = prevTree.kinds.get(rel) == Kind.AGGREGATE;
-        if (prevAggregate && prevOwners.equals(curOwners)) {
-          boolean digestsSame = true;
-          for (String module : curOwners) {
-            if (!prev.get(module).dirs.get(rel).equals(cur.get(module).dirs.get(rel))) {
-              digestsSame = false;
-              break;
-            }
-          }
-          if (digestsSame) {
-            rebuilt = false;
-          } else {
-            report("Resyncing " + rel);
-            resyncDirect(dir, rel, curOwners);
-            rebuilt = false;
-          }
-        } else {
-          // Previously a junction (or new/owner-changed node): replace the whole node.
-          rebuild(dir, rel);
-          rebuilt = true;
-        }
+        verifyDirectFiles(dir, rel);
       }
 
       List<String> curChildren = sortedChildren(curTree.children.get(rel));
-      Set<String> curNames = new HashSet<>(curChildren);
+      Map<String, String> actualNames = listNamesByLowerCase(dir);
       for (String name : curChildren) {
-        String childRel = rel.isEmpty() ? name : rel + "/" + name;
+        String childRel = root ? name : rel + "/" + name;
         File target = new File(dir, name);
+        boolean exactCase = name.equals(actualNames.get(name.toLowerCase(Locale.ROOT)));
         if (curTree.kinds.get(childRel) == Kind.AGGREGATE) {
-          aggregate(childRel, target, rebuilt);
+          aggregate(childRel, target, !exactCase);
         } else {
-          ensureJunction(childRel, target, rebuilt);
+          ensureJunction(childRel, target, !exactCase);
         }
       }
 
-      boolean prevHadChildren = root || prevTree.kinds.get(rel) == Kind.AGGREGATE;
-      if (prevHadChildren) {
-        List<String> prevChildren = sortedChildren(prevTree.children.get(rel));
-        for (String name : prevChildren) {
-          if (curNames.contains(name)) {
-            continue;
-          }
-          File stale = new File(dir, name);
-          if (stale.exists()) {
-            report("Removing " + (rel.isEmpty() ? name : rel + "/" + name));
-            deleteRecursively(stale);
-          }
-        }
+      Set<String> expected = new HashSet<>();
+      for (String name : curChildren) {
+        expected.add(name.toLowerCase(Locale.ROOT));
       }
-    }
-
-    private void ensureJunction(String rel, File target, boolean force) throws IOException {
-      String owner = curTree.junctionOwners.get(rel);
-      boolean same = !force && prevTree.kinds.get(rel) == Kind.JUNCTION
-          && owner != null && owner.equals(prevTree.junctionOwners.get(rel));
-      if (same) {
+      File[] actualChildren = dir.listFiles();
+      if (actualChildren == null) {
         return;
       }
-      if (target.exists()) {
-        report("Rebuilding " + rel);
-        deleteRecursively(target);
+      for (File child : actualChildren) {
+        if (child.isFile()) {
+          // Direct files are created and removed by verifyDirectFiles.
+          continue;
+        }
+        if (expected.contains(child.getName().toLowerCase(Locale.ROOT))) {
+          continue;
+        }
+        report("Removing " + (root ? child.getName() : rel + "/" + child.getName()));
+        deleteRecursively(child);
       }
-      createDirectoryLink(target, sourceDir(owner, rel));
     }
 
     private void rebuild(File dir, String rel) throws IOException {
-      if (dir.exists()) {
-        report("Rebuilding " + rel);
+      if (Files.exists(dir.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+        report("Rebuilding " + (rel.isEmpty() ? "classes root" : rel));
         deleteRecursively(dir);
       }
       mkdirs(dir);
-      List<String> owners = sortedOwners(cur, rel);
-      linkDirectFiles(dir, rel, owners);
+      verifyDirectFiles(dir, rel);
     }
 
-    private void resyncDirect(File dir, String rel, List<String> owners) throws IOException {
-      deleteDirectFiles(dir);
-      linkDirectFiles(dir, rel, owners);
-    }
-
-    private void linkDirectFiles(File dir, String rel, List<String> owners) throws IOException {
-      for (String module : owners) {
+    /**
+     * Ensures the real directory {@code dir} contains a hard link (or copy) for every direct file
+     * of the owning modules and nothing else, repairing missing and stale entries in place.
+     */
+    private void verifyDirectFiles(File dir, String rel) throws IOException {
+      Map<String, File> expected = new LinkedHashMap<>();
+      for (String module : ownersFor(rel)) {
         File src = sourceDir(module, rel);
         if (!src.isDirectory()) {
           continue;
@@ -271,34 +207,44 @@ public final class ResourceConsolidator {
           if (LINKER.isLink(child.toPath()) || !child.isFile()) {
             continue;
           }
-          createFileLink(new File(dir, child.getName()), child);
+          expected.put(child.getName().toLowerCase(Locale.ROOT), child);
         }
+      }
+
+      Map<String, File> present = listFilesByLowerCase(dir);
+      for (Map.Entry<String, File> entry : present.entrySet()) {
+        if (expected.containsKey(entry.getKey())) {
+          continue;
+        }
+        report("Removing " + entry.getValue().getName());
+        deleteIfExists(entry.getValue());
+      }
+
+      for (File source : expected.values()) {
+        File existing = present.get(source.getName().toLowerCase(Locale.ROOT));
+        if (existing != null && existing.getName().equals(source.getName())
+            && sameContent(existing, source)) {
+          continue;
+        }
+        createFileLink(new File(dir, source.getName()), source);
       }
     }
 
-    private void deleteDirectFiles(File dir) throws IOException {
-      File[] children = dir.listFiles();
-      if (children == null) {
+    private void ensureJunction(String rel, File target, boolean force) throws IOException {
+      String owner = curTree.junctionOwners.get(rel);
+      File source = sourceDir(owner, rel);
+      if (!force && LINKER.isDirectoryLinkTo(target.toPath(), source.toPath())) {
         return;
       }
-      for (File child : children) {
-        if (child.isFile()) {
-          deleteIfExists(child);
-        }
+      report("Rebuilding " + rel);
+      if (Files.exists(target.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+        deleteRecursively(target);
       }
+      createDirectoryLink(target, source);
     }
 
-    private boolean rootUnchanged() {
-      if (!cur.keySet().equals(prev.keySet())) {
-        return false;
-      }
-      for (Map.Entry<String, ModuleState> entry : cur.entrySet()) {
-        ModuleState previous = prev.get(entry.getKey());
-        if (previous == null || !previous.rootFiles.equals(entry.getValue().rootFiles)) {
-          return false;
-        }
-      }
-      return true;
+    private List<String> ownersFor(String rel) {
+      return rel.isEmpty() ? curModules : sortedOwners(cur, rel);
     }
 
     private void report(String text) {
@@ -313,41 +259,33 @@ public final class ResourceConsolidator {
   public static Merged consolidate(File mergedRoot, Classpath classpath,
                                    ProgressIndicator indicator) throws IOException {
     mkdirs(mergedRoot);
-    File manifestFile = new File(mergedRoot.getParentFile(), GiuanTomcatConstants.MERGED_MANIFEST_NAME);
-    Manifest previous = readManifest(manifestFile);
+    File manifestFile = new File(mergedRoot, GiuanTomcatConstants.MERGED_MANIFEST_NAME);
 
     boolean hasClasses = !classpath.classesDirs.isEmpty();
     boolean hasJars = !classpath.libJars.isEmpty();
 
-    List<String> desiredClasses = new ArrayList<>(classpath.classesDirs);
-    Collections.sort(desiredClasses);
-    Map<String, EntryInfo> desiredJars = collectJarInfos(classpath.libJars);
-    Map<String, EntryInfo> previousJars = previous == null ? Map.of() : previous.jars;
-    Map<String, ModuleState> previousModules = previous == null ? Map.of() : previous.modules;
+    File classesDir = new File(mergedRoot, WEB_INF_CLASSES);
+    File libDir = new File(mergedRoot, WEB_INF_LIB);
 
-    File classesDir = new File(mergedRoot, "WEB-INF/classes");
-    File libDir = new File(mergedRoot, "WEB-INF/lib");
-
+    List<String> sortedClasses = new ArrayList<>(new LinkedHashSet<>(classpath.classesDirs));
+    Collections.sort(sortedClasses);
     Map<String, ModuleState> currentModules = new LinkedHashMap<>();
     if (hasClasses) {
-      for (String dir : classpath.classesDirs) {
+      for (String dir : sortedClasses) {
         currentModules.put(dir, scanModule(new File(dir)));
       }
-      new Reconcile(classesDir, currentModules, previousModules, indicator).run();
+      new Reconcile(classesDir, currentModules, indicator).run();
     } else {
       deleteRecursively(classesDir);
     }
 
-    int jarsWork = hasJars ? jarsToProcess(previousJars, desiredJars) : 0;
-    int[] progress = {0};
     if (hasJars) {
-      mkdirs(libDir);
-      reconcileJars(libDir, previousJars, desiredJars, indicator, progress, jarsWork);
+      reconcileJars(libDir, classpath.libJars, indicator);
     } else {
       deleteRecursively(libDir);
     }
 
-    writeManifest(manifestFile, desiredClasses, desiredJars, currentModules);
+    writeManifest(manifestFile, sortedClasses, classpath.libJars, currentModules);
 
     return new Merged(hasClasses ? classesDir.getAbsolutePath() : null,
         hasJars ? libDir.getAbsolutePath() : null);
@@ -355,18 +293,17 @@ public final class ResourceConsolidator {
 
   private static ModuleState scanModule(File root) {
     Map<String, EntryInfo> rootFiles = new LinkedHashMap<>();
-    Map<String, String> dirs = new LinkedHashMap<>();
+    Set<String> dirs = new HashSet<>();
     scanDir(root, "", rootFiles, dirs);
     return new ModuleState(rootFiles, dirs);
   }
 
   private static void scanDir(File dir, String rel, Map<String, EntryInfo> rootFiles,
-                              Map<String, String> dirs) {
+                              Set<String> dirs) {
     File[] children = dir.listFiles();
     if (children == null) {
       return;
     }
-    Map<String, EntryInfo> direct = new HashMap<>();
     List<File> subDirs = new ArrayList<>();
     for (File child : children) {
       if (LINKER.isLink(child.toPath())) {
@@ -374,46 +311,17 @@ public final class ResourceConsolidator {
       }
       if (child.isDirectory()) {
         subDirs.add(child);
-      } else if (child.isFile()) {
+      } else if (rel.isEmpty() && child.isFile()) {
         EntryInfo info = entryInfo(child);
         if (info != null) {
-          direct.put(child.getName(), info);
+          rootFiles.put(child.getName(), info);
         }
       }
     }
-    if (rel.isEmpty()) {
-      rootFiles.putAll(direct);
-    } else {
-      dirs.put(rel, digestFiles(direct));
-    }
     for (File sub : subDirs) {
       String childRel = rel.isEmpty() ? sub.getName() : rel + "/" + sub.getName();
+      dirs.add(childRel);
       scanDir(sub, childRel, rootFiles, dirs);
-    }
-  }
-
-  private static EntryInfo entryInfo(File file) {
-    try {
-      BasicFileAttributes attrs = Files.readAttributes(file.toPath(), BasicFileAttributes.class);
-      return new EntryInfo(attrs.size(), attrs.lastModifiedTime().toMillis());
-    } catch (IOException e) {
-      return null;
-    }
-  }
-
-  private static String digestFiles(Map<String, EntryInfo> files) {
-    List<String> names = new ArrayList<>(files.keySet());
-    Collections.sort(names);
-    try {
-      MessageDigest md = MessageDigest.getInstance("SHA-256");
-      for (String name : names) {
-        EntryInfo info = files.get(name);
-        md.update((name + '\0' + info.size + '\0' + info.mtime + '\n')
-            .getBytes(StandardCharsets.UTF_8));
-      }
-      return HexFormat.of().formatHex(md.digest());
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("SHA-256 non disponibile", e);
     }
   }
 
@@ -421,7 +329,7 @@ public final class ResourceConsolidator {
     Tree tree = new Tree();
     Set<String> rels = new HashSet<>();
     for (ModuleState state : modules.values()) {
-      for (String rel : state.dirs.keySet()) {
+      for (String rel : state.dirs) {
         rels.add(rel);
         tree.counts.merge(rel, 1, Integer::sum);
       }
@@ -436,7 +344,7 @@ public final class ResourceConsolidator {
       } else {
         tree.kinds.put(rel, Kind.JUNCTION);
         for (Map.Entry<String, ModuleState> entry : modules.entrySet()) {
-          if (entry.getValue().dirs.containsKey(rel)) {
+          if (entry.getValue().dirs.contains(rel)) {
             tree.junctionOwners.put(rel, entry.getKey());
             break;
           }
@@ -474,7 +382,7 @@ public final class ResourceConsolidator {
   private static List<String> sortedOwners(Map<String, ModuleState> modules, String rel) {
     List<String> owners = new ArrayList<>();
     for (Map.Entry<String, ModuleState> entry : modules.entrySet()) {
-      if (entry.getValue().dirs.containsKey(rel)) {
+      if (entry.getValue().dirs.contains(rel)) {
         owners.add(entry.getKey());
       }
     }
@@ -496,74 +404,159 @@ public final class ResourceConsolidator {
         : new File(classesDir, rel.replace('/', File.separatorChar));
   }
 
-  private static void reconcileJars(File libDir, Map<String, EntryInfo> previous,
-                                    Map<String, EntryInfo> desired,
-                                    ProgressIndicator indicator, int[] progress, int total)
-      throws IOException {
-    for (Map.Entry<String, EntryInfo> entry : desired.entrySet()) {
-      String path = entry.getKey();
-      EntryInfo prev = previous.get(path);
-      if (prev != null && prev.equals(entry.getValue())) {
-        continue;
-      }
-      File link = new File(libDir, new File(path).getName());
-      progress(indicator,
-          "Linking jar (" + (progress[0] + 1) + "/" + total + "): " + new File(path).getName(),
-          path, progress[0], total);
-      deleteIfExists(link);
-      try {
-        createFileLink(link, new File(path));
-      } catch (IOException e) {
-        System.out.println(LOG_PREFIX + "jar non consolidato " + path + ": " + e.getMessage());
-      }
-      progress[0]++;
+  private static Map<String, File> listFilesByLowerCase(File dir) {
+    Map<String, File> files = new LinkedHashMap<>();
+    File[] children = dir.listFiles();
+    if (children == null) {
+      return files;
     }
-    for (String path : previous.keySet()) {
-      if (desired.containsKey(path)) {
-        continue;
+    for (File child : children) {
+      if (child.isFile()) {
+        files.put(child.getName().toLowerCase(Locale.ROOT), child);
       }
-      File link = new File(libDir, new File(path).getName());
-      progress(indicator,
-          "Removing jar (" + (progress[0] + 1) + "/" + total + "): " + new File(path).getName(),
-          path, progress[0], total);
-      deleteIfExists(link);
-      progress[0]++;
+    }
+    return files;
+  }
+
+  private static Map<String, String> listNamesByLowerCase(File dir) {
+    Map<String, String> names = new LinkedHashMap<>();
+    File[] children = dir.listFiles();
+    if (children == null) {
+      return names;
+    }
+    for (File child : children) {
+      names.putIfAbsent(child.getName().toLowerCase(Locale.ROOT), child.getName());
+    }
+    return names;
+  }
+
+  private static boolean sameContent(File first, File second) {
+    try {
+      BasicFileAttributes firstAttrs =
+          Files.readAttributes(first.toPath(), BasicFileAttributes.class);
+      BasicFileAttributes secondAttrs =
+          Files.readAttributes(second.toPath(), BasicFileAttributes.class);
+      return firstAttrs.size() == secondAttrs.size()
+          && firstAttrs.lastModifiedTime().equals(secondAttrs.lastModifiedTime());
+    } catch (IOException e) {
+      return false;
     }
   }
 
-  private static int jarsToProcess(Map<String, EntryInfo> previous, Map<String, EntryInfo> desired) {
-    int count = 0;
-    for (Map.Entry<String, EntryInfo> entry : desired.entrySet()) {
-      EntryInfo prev = previous.get(entry.getKey());
-      if (prev == null || !prev.equals(entry.getValue())) {
-        count++;
-      }
+  private static boolean isLinkedDirectory(File dir) {
+    Path path = dir.toPath().toAbsolutePath().normalize();
+    try {
+      return !path.equals(path.toRealPath());
+    } catch (IOException e) {
+      return true;
     }
-    for (String path : previous.keySet()) {
-      if (!desired.containsKey(path)) {
-        count++;
-      }
-    }
-    return count;
   }
 
-  private static Map<String, EntryInfo> collectJarInfos(List<String> jars) {
-    Map<String, EntryInfo> map = new HashMap<>();
-    for (String path : jars) {
-      File file = new File(path);
-      long size = -1;
-      long mtime = -1;
-      try {
-        if (file.isFile()) {
-          size = Files.size(file.toPath());
-          mtime = Files.getLastModifiedTime(file.toPath()).toMillis();
+  private static void reconcileJars(File libDir, List<String> jars,
+                                    ProgressIndicator indicator) throws IOException {
+    mkdirs(libDir);
+    Map<String, String> linkNames = jarLinkNames(jars);
+    Set<String> expectedNames = new HashSet<>(linkNames.values());
+
+    File[] existing = libDir.listFiles();
+    if (existing != null) {
+      for (File entry : existing) {
+        if (!entry.isFile() || expectedNames.contains(entry.getName())) {
+          continue;
         }
-      } catch (IOException ignored) {
-        // keep -1 so the jar is treated as changed
+        report(indicator, "Removing jar " + entry.getName());
+        deleteIfExists(entry);
       }
-      map.put(path, new EntryInfo(size, mtime));
     }
-    return map;
+
+    int total = jars.size();
+    int done = 0;
+    for (String path : jars) {
+      File source = new File(path);
+      File link = new File(libDir, linkNames.get(path));
+      done++;
+      if (isJarLinkValid(link, source)) {
+        continue;
+      }
+      progress(indicator,
+          "Linking jar (" + done + "/" + total + "): " + link.getName(), path, done - 1, total);
+      createFileLink(link, source);
+      progress(indicator,
+          "Linking jar (" + done + "/" + total + "): " + link.getName(), path, done, total);
+    }
+  }
+
+  private static boolean isJarLinkValid(File link, File source) {
+    if (!link.isFile() || !source.isFile()) {
+      return false;
+    }
+    return sameContent(link, source);
+  }
+
+  /**
+   * Assigns a unique link file name to every jar. Jars sharing the same file name (different
+   * versions or modules) would otherwise overwrite each other in the merged {@code WEB-INF/lib};
+   * all but the first, deterministically, get a short path hash suffix.
+   */
+  private static Map<String, String> jarLinkNames(List<String> jars) {
+    List<String> unique = new ArrayList<>(new LinkedHashSet<>(jars));
+    Collections.sort(unique);
+    Map<String, List<String>> byName = new LinkedHashMap<>();
+    for (String path : unique) {
+      byName.computeIfAbsent(new File(path).getName().toLowerCase(Locale.ROOT),
+          k -> new ArrayList<>()).add(path);
+    }
+    Map<String, String> names = new LinkedHashMap<>();
+    for (List<String> group : byName.values()) {
+      if (group.size() == 1) {
+        String path = group.get(0);
+        names.put(path, new File(path).getName());
+        continue;
+      }
+      System.out.println(LOG_PREFIX + "jar omonimi, nome disambiguato: " + group);
+      boolean first = true;
+      for (String path : group) {
+        String basename = new File(path).getName();
+        names.put(path, first ? basename : disambiguatedJarName(basename, path));
+        first = false;
+      }
+    }
+    return names;
+  }
+
+  private static String disambiguatedJarName(String basename, String path) {
+    int dot = basename.lastIndexOf('.');
+    String stem = dot > 0 ? basename.substring(0, dot) : basename;
+    String extension = dot > 0 ? basename.substring(dot) : "";
+    return stem + "-" + shortHash(path) + extension;
+  }
+
+  private static String shortHash(String value) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      return HexFormat.of()
+          .formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)))
+          .substring(0, 8);
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 non disponibile", e);
+    }
+  }
+
+  private static EntryInfo entryInfo(File file) {
+    try {
+      BasicFileAttributes attrs = Files.readAttributes(file.toPath(), BasicFileAttributes.class);
+      return new EntryInfo(attrs.size(), attrs.lastModifiedTime().toMillis());
+    } catch (IOException e) {
+      return null;
+    }
+  }
+
+  private static void report(ProgressIndicator indicator, String text) {
+    if (indicator == null) {
+      return;
+    }
+    indicator.setText2(text);
+    indicator.checkCanceled();
   }
 
   private static void progress(ProgressIndicator indicator, String text, String detail,
@@ -592,6 +585,11 @@ public final class ResourceConsolidator {
       LINKER.createFileLink(link.toPath(), target.toPath());
     } catch (IOException e) {
       Files.copy(target.toPath(), link.toPath(), StandardCopyOption.REPLACE_EXISTING);
+      try {
+        Files.setLastModifiedTime(link.toPath(), Files.getLastModifiedTime(target.toPath()));
+      } catch (IOException ignored) {
+        // Best effort: verification will relink if the timestamps diverge.
+      }
       System.out.println(LOG_PREFIX + "hard link non disponibile, copiato " + link + " <- "
           + target + " (" + e.getMessage() + ")");
     }
@@ -612,7 +610,7 @@ public final class ResourceConsolidator {
   }
 
   private static void writeManifest(File manifestFile, List<String> classesDirs,
-                                    Map<String, EntryInfo> jars,
+                                    List<String> jars,
                                     Map<String, ModuleState> modules) throws IOException {
     try (BufferedWriter writer =
              Files.newBufferedWriter(manifestFile.toPath(), StandardCharsets.UTF_8)) {
@@ -626,14 +624,18 @@ public final class ResourceConsolidator {
       }
       writer.write(SECTION_JARS);
       writer.newLine();
-      for (Map.Entry<String, EntryInfo> entry : jars.entrySet()) {
-        writer.write(entry.getValue().size + "\t" + entry.getValue().mtime + "\t"
-            + entry.getKey());
+      for (String jar : jars) {
+        EntryInfo info = entryInfo(new File(jar));
+        long size = info == null ? -1 : info.size;
+        long mtime = info == null ? -1 : info.mtime;
+        writer.write(size + "\t" + mtime + "\t" + jar);
         writer.newLine();
       }
       writer.write(SECTION_FILES);
       writer.newLine();
-      for (String dir : classesDirs) {
+      List<String> sortedModules = new ArrayList<>(classesDirs);
+      Collections.sort(sortedModules);
+      for (String dir : sortedModules) {
         ModuleState state = modules.get(dir);
         if (state == null) {
           continue;
@@ -645,84 +647,13 @@ public final class ResourceConsolidator {
               + "\t" + file.getValue().mtime);
           writer.newLine();
         }
-        for (Map.Entry<String, String> dirEntry : state.dirs.entrySet()) {
-          writer.write(TAG_DIR + "\t" + dirEntry.getKey() + "\t" + dirEntry.getValue());
+        List<String> dirs = new ArrayList<>(state.dirs);
+        Collections.sort(dirs);
+        for (String rel : dirs) {
+          writer.write(TAG_DIR + "\t" + rel);
           writer.newLine();
         }
       }
-    }
-  }
-
-  private static Manifest readManifest(File manifestFile) {
-    if (!manifestFile.isFile()) {
-      return null;
-    }
-    String expectedHeader =
-        GiuanTomcatConstants.MANIFEST_HEADER + " " + GiuanTomcatConstants.MANIFEST_VERSION;
-    try (BufferedReader reader =
-             Files.newBufferedReader(manifestFile.toPath(), StandardCharsets.UTF_8)) {
-      String header = reader.readLine();
-      if (header == null || !header.equals(expectedHeader)) {
-        return null;
-      }
-      List<String> classesDirs = new ArrayList<>();
-      Map<String, EntryInfo> jars = new HashMap<>();
-      Map<String, ModuleState> modules = new LinkedHashMap<>();
-      Map<String, Map<String, EntryInfo>> moduleRootFiles = new LinkedHashMap<>();
-      Map<String, Map<String, String>> moduleDirs = new LinkedHashMap<>();
-      String currentModule = null;
-      String section = null;
-      String line;
-      while ((line = reader.readLine()) != null) {
-        if (SECTION_CLASSES.equals(line)) {
-          section = SECTION_CLASSES;
-        } else if (SECTION_JARS.equals(line)) {
-          section = SECTION_JARS;
-        } else if (SECTION_FILES.equals(line)) {
-          section = SECTION_FILES;
-        } else if (line.isEmpty()) {
-          continue;
-        } else if (SECTION_CLASSES.equals(section)) {
-          classesDirs.add(line);
-        } else if (SECTION_JARS.equals(section)) {
-          String[] parts = line.split("\t", 3);
-          if (parts.length == 3) {
-            try {
-              jars.put(parts[2],
-                  new EntryInfo(Long.parseLong(parts[0]), Long.parseLong(parts[1])));
-            } catch (NumberFormatException ignored) {
-              // skip malformed entry
-            }
-          }
-        } else if (SECTION_FILES.equals(section)) {
-          String[] parts = line.split("\t");
-          if (parts.length < 2) {
-            continue;
-          }
-          if (TAG_MODULE.equals(parts[0])) {
-            currentModule = parts[1];
-            moduleRootFiles.put(currentModule, new LinkedHashMap<>());
-            moduleDirs.put(currentModule, new LinkedHashMap<>());
-          } else if (TAG_ROOT_FILE.equals(parts[0]) && parts.length == 4 && currentModule != null) {
-            try {
-              moduleRootFiles.get(currentModule).put(parts[1],
-                  new EntryInfo(Long.parseLong(parts[2]), Long.parseLong(parts[3])));
-            } catch (NumberFormatException ignored) {
-              // skip malformed entry
-            }
-          } else if (TAG_DIR.equals(parts[0]) && parts.length == 3 && currentModule != null
-              && !parts[2].isEmpty()) {
-            moduleDirs.get(currentModule).put(parts[1], parts[2]);
-          }
-        }
-      }
-      for (String module : moduleRootFiles.keySet()) {
-        modules.put(module,
-            new ModuleState(moduleRootFiles.get(module), moduleDirs.get(module)));
-      }
-      return new Manifest(classesDirs, jars, modules);
-    } catch (IOException e) {
-      return null;
     }
   }
 }

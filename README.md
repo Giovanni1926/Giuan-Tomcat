@@ -7,9 +7,10 @@ e le librerie jar di dipendenza (escluso il JDK) su `/WEB-INF/lib`.
 
 Il catalina base è **auto-generato in una cartella temporanea di sistema**: ogni run configuration
 usa una cartella dedicata `<tmp>/giuan-tomcat/<hash>/` dove `<hash>` deriva dal percorso del
-progetto e dal nome della configurazione (SHA-256 troncato), così config omonime di progetti
-diversi non si sovrappongono. All'interno: `catalina-base/` (istanza generata) e `giuan-merged/`
-(risorse consolidate).
+progetto e da un **id stabile della configurazione** (generato al primo uso e salvato nelle
+opzioni, SHA-256 troncato): rinominare una configurazione non cambia l'istanza e due
+configurazioni omonime non si sovrappongono. All'interno: `catalina-base/` (istanza generata) e
+`giuan-merged/` (risorse consolidate).
 
 ## Configurazione
 

@@ -41,6 +41,9 @@ public class GiuanTomcatRunConfigurationOptions extends RunConfigurationOptions 
   private final StoredProperty<String> myHotswapAgentPath =
       string("").provideDelegate(this, "hotswapAgentPath");
 
+  private final StoredProperty<String> myRuntimeId =
+      string("").provideDelegate(this, "runtimeId");
+
   public String getCatalinaHome() {
     return myCatalinaHome.getValue(this);
   }
@@ -127,5 +130,13 @@ public class GiuanTomcatRunConfigurationOptions extends RunConfigurationOptions 
 
   public void setHotswapAgentPath(String hotswapAgentPath) {
     myHotswapAgentPath.setValue(this, hotswapAgentPath);
+  }
+
+  public String getRuntimeId() {
+    return myRuntimeId.getValue(this);
+  }
+
+  public void setRuntimeId(String runtimeId) {
+    myRuntimeId.setValue(this, runtimeId);
   }
 }

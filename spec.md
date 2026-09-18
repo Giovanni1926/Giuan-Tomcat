@@ -3,8 +3,10 @@
 Plugin IntelliJ che genera un'istanza CATALINA_BASE (struttura + `server.xml` + `context.xml`) e
 avvia Tomcat 9. Il catalina base è **auto-generato** nella cartella temporanea di sistema (niente
 campo utente): ogni run configuration usa `<java.io.tmpdir>/giuan-tomcat/<hash>/` dove `<hash>` è
-uno SHA-256 (hex troncato a 16 caratteri) di `project.getLocationHash() + "|" + nomeConfig`,
-così config omonime in progetti diversi non collidono. Il `context.xml` viene generato dentro il
+uno SHA-256 (hex troncato a 16 caratteri) di `project.getLocationHash() + "|" + runtimeKey`, con
+`runtimeKey` = id stabile della configurazione (UUID generato al primo uso e persistito nelle
+opzioni, vedi §2). Il nome della configurazione non entra nell'hash: rinominarla non cambia
+l'istanza e due config omonime non collidono. Il `context.xml` viene generato dentro il
 catalina base, con il docBase scelto dall'utente, le classi compilate (`target/classes`) dei moduli
 scelti montate su `/WEB-INF/classes` e le librerie jar di dipendenza (escluso il JDK) su
 `/WEB-INF/lib`.
@@ -29,15 +31,20 @@ Nuove classi nel package `org.giuantomcat.tomcat`:
 - `ContextXmlBuilder` — genera il contenuto del `context.xml`.
 - `CatalinaBaseGenerator` — genera struttura catalina base + `server.xml` + `context.xml`.
 - `GiuanTomcatPaths` — calcola i path di runtime sotto `java.io.tmpdir`:
-  - `runtimeRoot = <tmp>/giuan-tomcat/<hash(project, configName)>`
+  - `runtimeRoot = <tmp>/giuan-tomcat/<hash(project, runtimeKey)>`
   - `catalinaBase = runtimeRoot/catalina-base`
   - `mergedRoot = runtimeRoot/giuan-merged`
+  - `runtimeKey` = `GiuanTomcatRunConfiguration.getRuntimeKey()` (id stabile, §2/§4)
 
 ## 2. Opzioni (stato persistito) — `GiuanTomcatRunConfigurationOptions`
 
 Campi (`StoredProperty`):
 - `catalinaHome` (String) — installazione Tomcat (CATALINA_HOME).
 - `webContent` (String) — docBase (contenuto web).
+  `catalinaHome` e `webContent` sono memorizzati con le path macro dell'IDE (es.
+  `$PROJECT_DIR$`) quando il percorso è nel progetto, ed espansi nei getter: copiare o spostare il
+  progetto non lascia path assoluti obsoleti. All'avvio, se `webContent` non esiste (o manca
+  `bin/bootstrap.jar` in `catalinaHome`) il run viene rifiutato con un messaggio chiaro.
 - `contextPath` (String) — es. `/myapp`.
 - `httpPort` (String, default `"8080"`).
 - `shutdownPort` (String, default `"8005"`).
@@ -51,6 +58,11 @@ Campi (`StoredProperty`):
 - `hotSwapEnabled` (Boolean, default `false`) — abilita la modalità HotSwap.
 - `dcevmJdkPath` (String) — home della JDK DCEVM dedicata (JDK 8 con DCEVM già installato).
 - `hotswapAgentPath` (String) — percorso di `hotswap-agent.jar` (selezionato manualmente).
+- `runtimeId` (String, generato) — identità stabile della configurazione: generata come UUID al
+  primo uso, persistita qui e usata per il `runtimeKey` dei path (§1). Se due configurazioni
+  condividono lo stesso id (copia o file progetto duplicato), quella che compare più avanti nella
+  lista del RunManager riceve un id nuovo al primo accesso: due config omonime non condividono mai
+  l'istanza.
 
 Rimosso `scriptName`.
 
@@ -106,15 +118,21 @@ Metodi:
 
 - `createJavaParameters()`:
   - Prima di tutto chiama `ClasspathResolver` + `CatalinaBaseGenerator`. I path dell'istanza
-    vengono da `GiuanTomcatPaths.catalinaBase(project, nomeConfig)` /
+    vengono da `GiuanTomcatPaths.catalinaBase(project, runtimeKey)` /
     `.mergedRoot(...)`; `CatalinaBaseGenerator.generate(...)` non riceve più `catalinaBase`
     (né `mergedRoot`): li calcola internamente via `GiuanTomcatPaths`.
-  - classpath: `$CATALINA_HOME/bin/bootstrap.jar`, `$CATALINA_HOME/bin/tomcat-juli.jar`.
+  - classpath: `$CATALINA_HOME/bin/bootstrap.jar`, `$CATALINA_HOME/bin/tomcat-juli.jar`. Le
+    `target/classes` dei moduli **non** sono sul classpath JVM: le classi applicative passano solo
+    dalle `PreResources` del `context.xml`, così è il webapp classloader (che vede la servlet API)
+    a definirle.
   - main class `org.apache.catalina.startup.Bootstrap`, arg `start`.
   - sysprops: `-Dcatalina.home`, `-Dcatalina.base`,
     `-Djava.util.logging.manager=org.apache.juli.ClassLoaderLogManager`,
     `-Djava.util.logging.config.file=$CATALINA_BASE/conf/logging.properties`.
   - working directory = `CATALINA_BASE`.
+- `execute(executor, runner)`: acquisisce il `TomcatRunLock` sul runtimeRoot prima di
+  `super.execute` (avvio rifiutato con messaggio se un'istanza della stessa configurazione è già
+  attiva) e lo rilascia alla terminazione del processo.
 - Se `hotSwapEnabled`: aggiunge `-XXaltjvm=dcevm` (sempre, anche in Debug) +
   `-Dhotswap.extraClasspath=<dirs classi>`. L'agent è `-javaagent:<agent>=autoHotswap=true`
   in Run (watch globale che ricarica le classi compilate) e `-javaagent:<agent>` senza
@@ -149,7 +167,10 @@ Metodi:
    a `false` e un `<JarScanFilter>` che esclude dallo scan i soli jar flaggati, con liste
    **indipendenti**: `pluggabilitySkip="..."` solo se la lista pluggability non è vuota e
    `tldSkip="..."` solo se la lista TLD non è vuota; i jar non flaggati restano scansionati e tutti
-   i jar restano montati:
+   i jar restano montati. `<Resources allowLinking="true">` e `readOnly="true"` sulle
+   `PreResources` sono **sempre** presenti: permettono a Tomcat di servire le risorse dietro
+   junction/symlink del merged tree (senza i check canonical/case) e impediscono scritture
+   attraverso i link:
 
 ```xml
 <Context docBase="<webContent>" reloadable="false"
@@ -158,17 +179,19 @@ Metodi:
               scanAllDirectories="false" scanAllFiles="false">
     <JarScanFilter pluggabilitySkip="dep1.jar" tldSkip="dep1.jar,dep2.jar"/>
   </JarScanner>
-  <Resources>
+  <Resources allowLinking="true">
     <PreResources className="org.apache.catalina.webresources.DirResourceSet"
-                   base="<module>/target/classes" webAppMount="/WEB-INF/classes"/>
-    <PreResources className="org.apache.catalina.webresources.FileResourceSet"
-                   base="<dep>.jar" webAppMount="/WEB-INF/lib/<dep>.jar"/>
+                   base="<tmp>/giuan-merged/WEB-INF/classes"
+                   webAppMount="/WEB-INF/classes" readOnly="true"/>
+    <PreResources className="org.apache.catalina.webresources.DirResourceSet"
+                   base="<tmp>/giuan-merged/WEB-INF/lib"
+                   webAppMount="/WEB-INF/lib" readOnly="true"/>
   </Resources>
 </Context>
 ```
 
-Se invece le due liste sono vuote, il `<Context>` resta invariato (`<Context docBase="...">`)
-e nessun `<JarScanner>` viene emesso.
+Se invece le due liste sono vuote, il `<Context>` resta senza `reloadable`/`containerSciFilter`
+e senza `<JarScanner>`, ma `<Resources allowLinking="true">` con le due `PreResources` resta.
 
 ## 8. Config / build
 

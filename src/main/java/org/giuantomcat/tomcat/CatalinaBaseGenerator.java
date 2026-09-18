@@ -41,14 +41,14 @@ public final class CatalinaBaseGenerator {
   }
 
   public static void generate(String catalinaHome,
-                              Project project, String configName,
+                              Project project, String runtimeKey,
                               String webContent, String contextPath,
                               String httpPort, String shutdownPort,
                               boolean skipAnnotationScan,
                               Classpath classpath,
                               ProgressIndicator indicator) throws IOException {
-    File base = GiuanTomcatPaths.catalinaBase(project, configName);
-    File mergedRoot = GiuanTomcatPaths.mergedRoot(project, configName);
+    File base = GiuanTomcatPaths.catalinaBase(project, runtimeKey);
+    File mergedRoot = GiuanTomcatPaths.mergedRoot(project, runtimeKey);
     report(indicator, "Preparing Giuan Tomcat environment", "Creating CATALINA_BASE structure");
     mkdirs(new File(base, CONF_DIR + "/Catalina/" + LOCALHOST_DIR));
     mkdirs(new File(base, LOGS_DIR));

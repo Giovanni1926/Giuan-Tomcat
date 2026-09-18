@@ -31,7 +31,7 @@ public final class UnixFileLinker implements FileLinker {
 
   @Override
   public void deleteRecursively(Path root) throws IOException {
-    if (!Files.exists(root)) {
+    if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
       return;
     }
     Files.walkFileTree(root, new RecursiveDeleteVisitor());
