@@ -40,18 +40,18 @@ public final class ContextXmlBuilder {
       sb.append("/>\n");
       sb.append("  </JarScanner>\n");
     }
-    sb.append("  <Resources>\n");
+    sb.append("  <Resources allowLinking=\"true\">\n");
 
     if (mergedClassesDir != null) {
       sb.append("    <PreResources className=\"org.apache.catalina.webresources.DirResourceSet\"\n");
       sb.append("                   base=\"").append(escapeXml(mergedClassesDir))
-          .append("\" webAppMount=\"/WEB-INF/classes\"/>\n");
+          .append("\" webAppMount=\"/WEB-INF/classes\" readOnly=\"true\"/>\n");
     }
 
     if (mergedLibDir != null) {
       sb.append("    <PreResources className=\"org.apache.catalina.webresources.DirResourceSet\"\n");
       sb.append("                   base=\"").append(escapeXml(mergedLibDir))
-          .append("\" webAppMount=\"/WEB-INF/lib\"/>\n");
+          .append("\" webAppMount=\"/WEB-INF/lib\" readOnly=\"true\"/>\n");
     }
 
     sb.append("  </Resources>\n");

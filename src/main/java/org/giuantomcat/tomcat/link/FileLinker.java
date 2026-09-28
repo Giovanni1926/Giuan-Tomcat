@@ -1,6 +1,7 @@
 package org.giuantomcat.tomcat.link;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -47,4 +48,23 @@ public interface FileLinker {
    * @param path path to inspect
    */
   boolean isLink(Path path);
+
+  /**
+   * Returns {@code true} if {@code link} exists and resolves to {@code target}.
+   *
+   * <p>Used to validate the consolidated tree without trusting any recorded state: works for NTFS
+   * junctions, Unix symlinks and, on Windows, also for links pointing to a file (the OS resolves
+   * them). A missing link, a dangling link or a real directory obtained by copying returns
+   * {@code false}, so the caller rebuilds it.
+   *
+   * @param link   path to inspect
+   * @param target expected target directory
+   */
+  default boolean isDirectoryLinkTo(Path link, Path target) {
+    try {
+      return Files.exists(link) && Files.exists(target) && Files.isSameFile(link, target);
+    } catch (IOException e) {
+      return false;
+    }
+  }
 }

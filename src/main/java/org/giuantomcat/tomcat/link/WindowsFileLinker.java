@@ -11,6 +11,7 @@ import com.sun.jna.win32.W32APIOptions;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 
 /**
@@ -119,7 +120,7 @@ public final class WindowsFileLinker implements FileLinker {
   @Override
   public void deleteLink(Path link) throws IOException {
     Path path = link.toAbsolutePath().normalize();
-    if (!Files.exists(path)) {
+    if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
       return;
     }
     Files.delete(path);
@@ -127,7 +128,7 @@ public final class WindowsFileLinker implements FileLinker {
 
   @Override
   public void deleteRecursively(Path root) throws IOException {
-    if (!Files.exists(root)) {
+    if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
       return;
     }
     runCmd(String.format(RMDIR, root.toAbsolutePath()));
@@ -155,7 +156,7 @@ public final class WindowsFileLinker implements FileLinker {
     if (!Files.isDirectory(target)) {
       throw new IOException("Junction target is not a directory: " + target);
     }
-    if (Files.exists(link)) {
+    if (Files.exists(link, LinkOption.NOFOLLOW_LINKS)) {
       throw new IOException("Junction path already exists: " + link);
     }
 
@@ -285,7 +286,7 @@ public final class WindowsFileLinker implements FileLinker {
     if (!Files.isRegularFile(target)) {
       throw new IOException("Hard link target is not a regular file: " + target);
     }
-    if (Files.exists(link)) {
+    if (Files.exists(link, LinkOption.NOFOLLOW_LINKS)) {
       throw new IOException("Hard link path already exists: " + link);
     }
 
