@@ -216,35 +216,41 @@ public class GiuanTomcatRunConfiguration
 
   @Override
   public void checkConfiguration() throws RuntimeConfigurationException {
-    validateSettings();
+    String error = validationError();
+    if (error != null) {
+      throw new RuntimeConfigurationException(error);
+    }
   }
 
   @Override
   public void checkSettingsBeforeRun() throws RuntimeConfigurationException {
-    validateSettings();
+    checkConfiguration();
   }
 
   /**
    * Fails fast with a clear message when the configured paths are missing, instead of letting
    * Tomcat fail later with an obscure "main resource set ... is not a directory" error.
+   *
+   * @return the validation error to show, or {@code null} when the settings are valid
    */
-  private void validateSettings() throws RuntimeConfigurationException {
+  @Nullable
+  String validationError() {
     String webContent = getWebContent();
     if (webContent == null || webContent.isBlank()) {
-      throw new RuntimeConfigurationException("Specifica il campo \"Web content (docBase)\".");
+      return "Specifica il campo \"Web content (docBase)\".";
     }
     if (!new File(webContent).isDirectory()) {
-      throw new RuntimeConfigurationException("Web content non trovato: " + webContent
-          + ". Aggiorna il campo \"Web content\" della run configuration.");
+      return "Web content non trovato: " + webContent
+          + ". Aggiorna il campo \"Web content\" della run configuration.";
     }
     String catalinaHome = getCatalinaHome();
     if (catalinaHome == null || catalinaHome.isBlank()) {
-      throw new RuntimeConfigurationException("Specifica il campo CATALINA_HOME.");
+      return "Specifica il campo CATALINA_HOME.";
     }
     if (!new File(catalinaHome, "bin/bootstrap.jar").isFile()) {
-      throw new RuntimeConfigurationException("CATALINA_HOME non valido (manca bin/bootstrap.jar): "
-          + catalinaHome);
+      return "CATALINA_HOME non valido (manca bin/bootstrap.jar): " + catalinaHome;
     }
+    return null;
   }
 
   @NotNull

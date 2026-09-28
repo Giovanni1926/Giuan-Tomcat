@@ -5,7 +5,6 @@ import com.intellij.execution.ExecutionResult;
 import com.intellij.execution.Executor;
 import com.intellij.execution.configurations.JavaCommandLineState;
 import com.intellij.execution.configurations.JavaParameters;
-import com.intellij.execution.configurations.RuntimeConfigurationException;
 import com.intellij.execution.executors.DefaultDebugExecutor;
 import com.intellij.execution.process.OSProcessHandler;
 import com.intellij.execution.process.ProcessEvent;
@@ -121,10 +120,9 @@ public class GiuanTomcatCommandLineState extends JavaCommandLineState {
   @NotNull
   @Override
   protected JavaParameters createJavaParameters() throws ExecutionException {
-    try {
-      myConfiguration.checkConfiguration();
-    } catch (RuntimeConfigurationException e) {
-      throw new ExecutionException(e.getMessage(), e);
+    String configurationError = myConfiguration.validationError();
+    if (configurationError != null) {
+      throw new ExecutionException(configurationError);
     }
     Project project = myConfiguration.getProject();
     String catalinaHome = myConfiguration.getCatalinaHome();
